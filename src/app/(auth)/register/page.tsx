@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Wallet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import axios from "axios";
+import api from "@/lib/api/client";
 import type { z } from "zod/v4";
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -31,22 +33,15 @@ export default function RegisterPage() {
   async function onSubmit(data: RegisterForm) {
     setLoading(true);
     try {
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        toast.error(errorData.error || "Erro ao criar conta");
-        return;
-      }
-
+      await api.post("/api/register", data);
       toast.success("Conta criada com sucesso! Faça login.");
       router.push("/login");
-    } catch {
-      toast.error("Erro ao criar conta");
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        toast.error(err.response?.data?.error || "Erro ao criar conta");
+      } else {
+        toast.error("Erro ao criar conta");
+      }
     } finally {
       setLoading(false);
     }

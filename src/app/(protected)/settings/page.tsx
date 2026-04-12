@@ -28,6 +28,8 @@ import {
   PiggyBank,
 } from "lucide-react";
 import { toast } from "sonner";
+import axios from "axios";
+import api from "@/lib/api/client";
 
 interface Category {
   id: string;
@@ -83,15 +85,22 @@ export default function SettingsPage() {
   const fetchData = useCallback(async () => {
     try {
       const [catRes, budgetRes, goalRes] = await Promise.all([
-        fetch("/api/categories"),
-        fetch(`/api/budgets?month=${currentMonth}&year=${currentYear}`),
-        fetch(`/api/goals?month=${currentMonth}&year=${currentYear}`),
+        api.get("/api/categories"),
+        api.get(`/api/budgets?month=${currentMonth}&year=${currentYear}`),
+        api.get(`/api/goals?month=${currentMonth}&year=${currentYear}`),
       ]);
-      setCategories(await catRes.json());
-      setBudgets(await budgetRes.json());
-      const goalData = await goalRes.json();
+
+      setCategories(Array.isArray(catRes.data) ? catRes.data : []);
+      setBudgets(Array.isArray(budgetRes.data) ? budgetRes.data : []);
+
+      const goalData = goalRes.data;
       setGoal(goalData);
-      if (goalData) setGoalAmount((goalData.targetCents / 100).toString());
+      if (goalData?.targetCents) setGoalAmount((goalData.targetCents / 100).toString());
+    } catch (err) {
+      if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+        toast.error("Erro ao carregar configurações");
+        console.error("[fetchData settings]", err);
+      }
     } finally {
       setLoading(false);
     }
@@ -122,20 +131,16 @@ export default function SettingsPage() {
     setCatSaving(true);
     try {
       const payload = { name: catName, color: catColor, icon: catIcon };
-      const url = editingCat ? `/api/categories/${editingCat.id}` : "/api/categories";
-      const method = editingCat ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        toast.error("Erro ao salvar categoria");
-        return;
+      if (editingCat) {
+        await api.put(`/api/categories/${editingCat.id}`, payload);
+      } else {
+        await api.post("/api/categories", payload);
       }
       toast.success(editingCat ? "Categoria atualizada" : "Categoria criada");
       setCatDialogOpen(false);
       fetchData();
+    } catch {
+      toast.error("Erro ao salvar categoria");
     } finally {
       setCatSaving(false);
     }
@@ -144,11 +149,11 @@ export default function SettingsPage() {
   async function deleteCat(id: string) {
     if (!confirm("Ao excluir, os gastos desta categoria ficarão 'Sem categoria'. Continuar?"))
       return;
-    const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await api.delete(`/api/categories/${id}`);
       toast.success("Categoria excluída");
       fetchData();
-    } else {
+    } catch {
       toast.error("Erro ao excluir");
     }
   }
@@ -164,20 +169,12 @@ export default function SettingsPage() {
     setBudgetSaving(true);
     try {
       const amountCents = reaisToCents(parseFloat(budgetAmount));
-      const res = await fetch("/api/budgets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          categoryId: budgetCategory,
-          amountCents,
-          month: currentMonth,
-          year: currentYear,
-        }),
+      await api.post("/api/budgets", {
+        categoryId: budgetCategory,
+        amountCents,
+        month: currentMonth,
+        year: currentYear,
       });
-      if (!res.ok) {
-        toast.error("Erro ao salvar orçamento");
-        return;
-      }
       toast.success("Orçamento definido");
       setBudgetDialogOpen(false);
       fetchData();
@@ -193,15 +190,7 @@ export default function SettingsPage() {
     setGoalSaving(true);
     try {
       const targetCents = reaisToCents(parseFloat(goalAmount));
-      const res = await fetch("/api/goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetCents, month: currentMonth, year: currentYear }),
-      });
-      if (!res.ok) {
-        toast.error("Erro ao salvar meta");
-        return;
-      }
+      await api.post("/api/goals", { targetCents, month: currentMonth, year: currentYear });
       toast.success("Meta definida");
       fetchData();
     } catch {
@@ -213,15 +202,15 @@ export default function SettingsPage() {
 
   // Export handlers
   async function exportCSV() {
-    const res = await fetch("/api/expenses");
-    const data = await res.json();
+    const res = await api.get("/api/expenses");
+    const data = res.data;
     const catMap = new Map(categories.map((c) => [c.id, c.name]));
 
     const header = "Data,Descrição,Categoria,Valor\n";
     const rows = data
       .map(
         (e: { date: number; description: string; categoryId: string | null; amountCents: number }) =>
-          `${new Date(e.date * 1000).toLocaleDateString("pt-BR")},"${e.description}",${catMap.get(e.categoryId || "") || "Sem categoria"},${centsToReais(e.amountCents)}`
+          `${(typeof e.date === "string" ? new Date(e.date) : new Date(e.date * 1000)).toLocaleDateString("pt-BR")},"${e.description}",${catMap.get(e.categoryId || "") || "Sem categoria"},${centsToReais(e.amountCents)}`
       )
       .join("\n");
 
@@ -231,13 +220,13 @@ export default function SettingsPage() {
   }
 
   async function exportJSON() {
-    const res = await fetch("/api/expenses");
-    const data = await res.json();
+    const res = await api.get("/api/expenses");
+    const data = res.data;
     const catMap = new Map(categories.map((c) => [c.id, c.name]));
 
     const formatted = data.map(
       (e: { date: number; description: string; categoryId: string | null; amountCents: number }) => ({
-        data: new Date(e.date * 1000).toLocaleDateString("pt-BR"),
+        data: (typeof e.date === "string" ? new Date(e.date) : new Date(e.date * 1000)).toLocaleDateString("pt-BR"),
         descricao: e.description,
         categoria: catMap.get(e.categoryId || "") || "Sem categoria",
         valor: centsToReais(e.amountCents),

@@ -32,14 +32,23 @@ import { Badge } from "@/components/ui/badge";
 import { centsToReais, reaisToCents } from "@/lib/business/currency";
 import { Plus, Search, Pencil, Trash2, Loader2, Receipt } from "lucide-react";
 import { toast } from "sonner";
+import axios from "axios";
+import api from "@/lib/api/client";
 
 interface Expense {
   id: string;
   description: string;
   amountCents: number;
-  date: number;
+  date: number | string;
   categoryId: string | null;
-  createdAt: number;
+  createdAt: number | string;
+}
+
+// Turso returns timestamps as Date objects (serialized to strings via JSON)
+// SQLite local returns integers (unix seconds). This helper handles both.
+function toDate(value: number | string): Date {
+  if (typeof value === "string") return new Date(value);
+  return new Date(value * 1000);
 }
 
 interface Category {
@@ -61,7 +70,6 @@ export default function ExpensesPage() {
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
 
   // Form
   const [formAmount, setFormAmount] = useState("");
@@ -75,18 +83,24 @@ export default function ExpensesPage() {
       if (search) params.set("search", search);
       if (filterCategory && filterCategory !== "all") params.set("categoryId", filterCategory);
       if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
+
 
       const [expRes, catRes] = await Promise.all([
-        fetch(`/api/expenses?${params}`),
-        fetch("/api/categories"),
+        api.get(`/api/expenses?${params}`),
+        api.get("/api/categories"),
       ]);
-      setExpenses(await expRes.json());
-      setCategories(await catRes.json());
+
+      setExpenses(Array.isArray(expRes.data) ? expRes.data : []);
+      setCategories(Array.isArray(catRes.data) ? catRes.data : []);
+    } catch (err) {
+      if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+        toast.error("Erro ao carregar dados");
+        console.error("[fetchData expenses]", err);
+      }
     } finally {
       setLoading(false);
     }
-  }, [search, filterCategory, dateFrom, dateTo]);
+  }, [search, filterCategory, dateFrom]);
 
   useEffect(() => {
     fetchData();
@@ -108,7 +122,7 @@ export default function ExpensesPage() {
     setFormAmount((expense.amountCents / 100).toString());
     setFormDescription(expense.description);
     setFormCategory(expense.categoryId || "");
-    setFormDate(new Date(expense.date * 1000).toISOString().split("T")[0]);
+    setFormDate(toDate(expense.date).toISOString().split("T")[0]);
     setDialogOpen(true);
   }
 
@@ -130,24 +144,21 @@ export default function ExpensesPage() {
         date: new Date(formDate + "T12:00:00").toISOString(),
       };
 
-      const url = editing ? `/api/expenses/${editing.id}` : "/api/expenses";
-      const method = editing ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error || "Erro ao salvar");
-        return;
+      if (editing) {
+        await api.put(`/api/expenses/${editing.id}`, payload);
+      } else {
+        await api.post("/api/expenses", payload);
       }
 
       toast.success(editing ? "Gasto atualizado" : "Gasto registrado");
       setDialogOpen(false);
       fetchData();
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        toast.error(err.response?.data?.error || "Erro ao salvar");
+      } else {
+        toast.error("Erro ao salvar");
+      }
     } finally {
       setSaving(false);
     }
@@ -155,11 +166,11 @@ export default function ExpensesPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Deseja realmente excluir este gasto?")) return;
-    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await api.delete(`/api/expenses/${id}`);
       toast.success("Gasto excluído");
       fetchData();
-    } else {
+    } catch {
       toast.error("Erro ao excluir");
     }
   }
@@ -187,11 +198,11 @@ export default function ExpensesPage() {
                 placeholder="Buscar..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                className="w-full pl-9"
               />
             </div>
             <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger>
+              <SelectTrigger  className="w-full">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -203,8 +214,12 @@ export default function ExpensesPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full"
+            />
           </div>
         </CardContent>
       </Card>
@@ -255,9 +270,7 @@ export default function ExpensesPage() {
                           <span className="text-muted-foreground text-xs">Sem categoria</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {new Date(expense.date * 1000).toLocaleDateString("pt-BR")}
-                      </TableCell>
+                      <TableCell>{toDate(expense.date).toLocaleDateString("pt-BR")}</TableCell>
                       <TableCell className="text-right font-semibold">
                         {centsToReais(expense.amountCents)}
                       </TableCell>

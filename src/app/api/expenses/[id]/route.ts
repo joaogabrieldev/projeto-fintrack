@@ -33,13 +33,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       })
       .where(and(eq(expenses.id, id), eq(expenses.userId, userId)));
 
-    if (updated.changes === 0) {
+    if (updated.rowsAffected === 0) {
       return NextResponse.json({ error: "Gasto não encontrado" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  } catch (error) {
+    console.error("[PUT /api/expenses/:id]", error);
+    const message =
+      process.env.NODE_ENV === "development"
+        ? (error instanceof Error ? error.message : String(error))
+        : "Erro interno do servidor";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -54,12 +59,17 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       .delete(expenses)
       .where(and(eq(expenses.id, id), eq(expenses.userId, userId)));
 
-    if (deleted.changes === 0) {
+    if (deleted.rowsAffected === 0) {
       return NextResponse.json({ error: "Gasto não encontrado" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  } catch (error) {
+    console.error("[DELETE /api/expenses/:id]", error);
+    const message =
+      process.env.NODE_ENV === "development"
+        ? (error instanceof Error ? error.message : String(error))
+        : "Erro interno do servidor";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

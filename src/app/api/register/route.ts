@@ -42,7 +42,12 @@ export async function POST(req: Request) {
     await seedCategoriesForUser(id);
 
     return NextResponse.json({ message: "Usuário criado com sucesso" }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  } catch (error) {
+    console.error("[POST /api/register]", error);
+    const message =
+      process.env.NODE_ENV === "development"
+        ? (error instanceof Error ? error.message : String(error))
+        : "Erro interno do servidor";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

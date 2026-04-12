@@ -7,6 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { centsToReais } from "@/lib/business/currency";
 import { calculateBudgetUsage } from "@/lib/business/budget";
+import axios from "axios";
+import api from "@/lib/api/client";
 import {
   DollarSign,
   TrendingUp,
@@ -33,12 +35,13 @@ interface DashboardData {
   weekTotal: number;
   transactionCount: number;
   byCategory: { categoryId: string | null; total: number }[];
+  byCategoryMonth: { categoryId: string | null; total: number }[];
   dailyTotals: { day: string; total: number }[];
   recent: {
     id: string;
     description: string;
     amountCents: number;
-    date: number;
+    date: number | string;
     categoryId: string | null;
   }[];
   budgets: {
@@ -66,13 +69,18 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       const [dashRes, catRes] = await Promise.all([
-        fetch("/api/dashboard"),
-        fetch("/api/categories"),
+        api.get("/api/dashboard"),
+        api.get("/api/categories"),
       ]);
-      const dashData = await dashRes.json();
-      const catData = await catRes.json();
-      setData(dashData);
-      setCategories(catData);
+
+      const dashData = dashRes.data;
+      const catData = catRes.data;
+      if (dashData && !dashData.error) setData(dashData);
+      setCategories(Array.isArray(catData) ? catData : []);
+    } catch (err) {
+      if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+        console.error("[fetchData dashboard]", err);
+      }
     } finally {
       setLoading(false);
     }
@@ -126,9 +134,9 @@ export default function DashboardPage() {
     lineData.push({ date: dateStr, total: (dailyMap.get(dateStr) || 0) / 100 });
   }
 
-  // Budget section
+  // Budget section — uses monthly data so the comparison is accurate
   const budgetSpentMap = new Map(
-    (data?.byCategory || []).map((b) => [b.categoryId, b.total])
+    (data?.byCategoryMonth || []).map((b) => [b.categoryId, b.total])
   );
 
   return (
@@ -198,7 +206,7 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="flex flex-row items-center gap-2">
                 <PieChartIcon className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base">Gastos por Categoria</CardTitle>
+                <CardTitle className="text-base">Gastos por Categoria (30 dias)</CardTitle>
               </CardHeader>
               <CardContent>
                 {pieData.length > 0 ? (
@@ -369,7 +377,7 @@ export default function DashboardPage() {
                           <p className="text-sm font-medium">{expense.description}</p>
                           <p className="text-xs text-muted-foreground">
                             {cat?.name || "Sem categoria"} •{" "}
-                            {new Date(expense.date * 1000).toLocaleDateString("pt-BR")}
+                            {(typeof expense.date === "string" ? new Date(expense.date) : new Date(expense.date * 1000)).toLocaleDateString("pt-BR")}
                           </p>
                         </div>
                       </div>

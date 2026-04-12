@@ -1,28 +1,21 @@
-import Database from "better-sqlite3";
-import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 
-let _db: BetterSQLite3Database<typeof schema> | null = null;
+const url = process.env.DATABASE_URL;
 
-function getDb(): BetterSQLite3Database<typeof schema> {
-  if (!_db) {
-    const dbPath = process.env.DATABASE_URL?.replace("file:", "") || "./data/fintrack.db";
-    const sqlite = new Database(dbPath);
-    sqlite.pragma("journal_mode = WAL");
-    sqlite.pragma("busy_timeout = 5000");
-    sqlite.pragma("foreign_keys = ON");
-    _db = drizzle(sqlite, { schema });
-  }
-  return _db;
+if (!url) {
+  throw new Error(
+    "[DB] DATABASE_URL não está definida. Verifique o arquivo .env na raiz do projeto."
+  );
 }
 
-export const db = new Proxy({} as BetterSQLite3Database<typeof schema>, {
-  get(_target, prop) {
-    const instance = getDb();
-    const value = instance[prop as keyof typeof instance];
-    if (typeof value === "function") {
-      return value.bind(instance);
-    }
-    return value;
-  },
+const isRemote = url.startsWith("libsql://") || url.startsWith("https://");
+
+const client = createClient({
+  url,
+  // authToken só é necessário para bancos remotos
+  authToken: isRemote ? process.env.DATABASE_AUTH_TOKEN : undefined,
 });
+
+export const db = drizzle(client, { schema });

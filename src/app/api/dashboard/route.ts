@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { expenses, budgets, goals } from "@/lib/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
 
 export async function GET() {
@@ -12,23 +12,13 @@ export async function GET() {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  // Start of month
   const monthStart = new Date(currentYear, currentMonth - 1, 1);
-  const monthStartTs = Math.floor(monthStart.getTime() / 1000);
-
-  // Start of week (Monday)
   const weekStart = new Date(now);
   const dayOfWeek = weekStart.getDay() || 7;
   weekStart.setDate(weekStart.getDate() - dayOfWeek + 1);
   weekStart.setHours(0, 0, 0, 0);
-  const weekStartTs = Math.floor(weekStart.getTime() / 1000);
-
-  // 30 days ago
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoTs = Math.floor(thirtyDaysAgo.getTime() / 1000);
-
-  const nowTs = Math.floor(now.getTime() / 1000);
 
   // Month total
   const [monthTotal] = await db
@@ -37,13 +27,7 @@ export async function GET() {
       count: sql<number>`COUNT(*)`.as("count"),
     })
     .from(expenses)
-    .where(
-      and(
-        eq(expenses.userId, userId),
-        sql`${expenses.date} >= ${monthStartTs}`,
-        sql`${expenses.date} <= ${nowTs}`
-      )
-    );
+    .where(and(eq(expenses.userId, userId), gte(expenses.date, monthStart), lte(expenses.date, now)));
 
   // Week total
   const [weekTotal] = await db
@@ -51,45 +35,50 @@ export async function GET() {
       total: sql<number>`COALESCE(SUM(${expenses.amountCents}), 0)`.as("total"),
     })
     .from(expenses)
-    .where(
-      and(
-        eq(expenses.userId, userId),
-        sql`${expenses.date} >= ${weekStartTs}`,
-        sql`${expenses.date} <= ${nowTs}`
-      )
-    );
+    .where(and(eq(expenses.userId, userId), gte(expenses.date, weekStart), lte(expenses.date, now)));
 
-  // By category (this month)
+  // By category (last 30 days — same window as the daily chart, used by pie chart)
   const byCategory = await db
     .select({
       categoryId: expenses.categoryId,
       total: sql<number>`SUM(${expenses.amountCents})`.as("total"),
     })
     .from(expenses)
-    .where(
-      and(
-        eq(expenses.userId, userId),
-        sql`${expenses.date} >= ${monthStartTs}`,
-        sql`${expenses.date} <= ${nowTs}`
-      )
-    )
+    .where(and(eq(expenses.userId, userId), gte(expenses.date, thirtyDaysAgo), lte(expenses.date, now)))
     .groupBy(expenses.categoryId);
 
-  // Daily totals (last 30 days)
-  const dailyTotals = await db
+  // By category (this month — used by budget progress bars)
+  const byCategoryMonth = await db
     .select({
-      day: sql<string>`DATE(${expenses.date}, 'unixepoch')`.as("day"),
+      categoryId: expenses.categoryId,
+      total: sql<number>`SUM(${expenses.amountCents})`.as("total"),
+    })
+    .from(expenses)
+    .where(and(eq(expenses.userId, userId), gte(expenses.date, monthStart), lte(expenses.date, now)))
+    .groupBy(expenses.categoryId);
+
+  // Daily totals (last 30 days) - group by date string
+  const dailyRaw = await db
+    .select({
+      date: expenses.date,
       total: sql<number>`SUM(${expenses.amountCents})`.as("total"),
     })
     .from(expenses)
     .where(
-      and(
-        eq(expenses.userId, userId),
-        sql`${expenses.date} >= ${thirtyDaysAgoTs}`,
-        sql`${expenses.date} <= ${nowTs}`
-      )
+      and(eq(expenses.userId, userId), gte(expenses.date, thirtyDaysAgo), lte(expenses.date, now))
     )
-    .groupBy(sql`DATE(${expenses.date}, 'unixepoch')`);
+    .groupBy(expenses.date);
+
+  // Normalize daily totals to { day: "YYYY-MM-DD", total }
+  const dailyTotals = Object.values(
+    dailyRaw.reduce<Record<string, { day: string; total: number }>>((acc, row) => {
+      const d = row.date instanceof Date ? row.date : new Date(row.date);
+      const day = d.toISOString().split("T")[0];
+      if (!acc[day]) acc[day] = { day, total: 0 };
+      acc[day].total += row.total;
+      return acc;
+    }, {})
+  );
 
   // Recent 5
   const recent = await db
@@ -104,11 +93,7 @@ export async function GET() {
     .select()
     .from(budgets)
     .where(
-      and(
-        eq(budgets.userId, userId),
-        eq(budgets.month, currentMonth),
-        eq(budgets.year, currentYear)
-      )
+      and(eq(budgets.userId, userId), eq(budgets.month, currentMonth), eq(budgets.year, currentYear))
     );
 
   // Goal for this month
@@ -125,6 +110,7 @@ export async function GET() {
     weekTotal: weekTotal.total,
     transactionCount: monthTotal.count,
     byCategory,
+    byCategoryMonth,
     dailyTotals,
     recent,
     budgets: monthBudgets,

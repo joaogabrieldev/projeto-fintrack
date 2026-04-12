@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { budgets, expenses } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
 import { z } from "zod/v4";
 
@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
     .where(
       and(
         eq(expenses.userId, userId),
-        sql`${expenses.date} >= ${Math.floor(startDate.getTime() / 1000)}`,
-        sql`${expenses.date} <= ${Math.floor(endDate.getTime() / 1000)}`
+        gte(expenses.date, startDate),
+        lte(expenses.date, endDate)
       )
     )
     .groupBy(expenses.categoryId);
@@ -90,7 +90,12 @@ export async function POST(req: Request) {
     await db.insert(budgets).values({ id, userId, categoryId, amountCents, month, year });
 
     return NextResponse.json({ id }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  } catch (error) {
+    console.error("[POST /api/budgets]", error);
+    const message =
+      process.env.NODE_ENV === "development"
+        ? (error instanceof Error ? error.message : String(error))
+        : "Erro interno do servidor";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
