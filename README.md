@@ -1,5 +1,3 @@
-![CI](https://github.com/USER/REPO/actions/workflows/ci.yml/badge.svg)
-
 # FinTrack — Gerenciador de Gastos Pessoais
 
 ## O Problema
