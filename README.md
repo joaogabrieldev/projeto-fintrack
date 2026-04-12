@@ -63,7 +63,7 @@ pnpm install
 
 # 3. Configure o ambiente
 cp .env.example .env
-# Edite o .env e defina AUTH_SECRET (gere com: openssl rand -base64 32)
+# Edite o .env e defina AUTH_SECRET (gere com: npx auth secret)
 
 # 4. Crie o banco de dados
 mkdir -p data
