@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+![CI](https://github.com/USER/REPO/actions/workflows/ci.yml/badge.svg)
 
-## Getting Started
+# FinTrack — Gerenciador de Gastos Pessoais
 
-First, run the development server:
+## O Problema
+
+Muitas pessoas no Brasil não têm controle sobre seus gastos mensais, levando a endividamento e estresse financeiro. Pesquisas do SPC mostram que mais de 60% dos brasileiros não fazem controle detalhado de despesas. A falta de visibilidade sobre para onde o dinheiro vai impede o planejamento financeiro e a construção de uma reserva de emergência.
+
+## A Solução
+
+O **FinTrack** é uma aplicação web multi-usuário que permite registrar, categorizar, orçar e visualizar gastos pessoais com gráficos claros e alertas de limite. Cada usuário tem sua própria conta com dados completamente isolados, podendo acompanhar seus gastos diários, definir orçamentos por categoria e estabelecer metas de economia mensal.
+
+## Público-Alvo
+
+Jovens adultos e famílias que querem organizar finanças pessoais de forma simples, visual e acessível.
+
+## Funcionalidades Principais
+
+- **Autenticação multi-usuário** — registro e login com senhas seguras (bcrypt)
+- **CRUD de gastos** — registrar, listar com filtros, editar e remover gastos
+- **Categorias personalizadas** — criar, editar e remover categorias com cor e ícone
+- **Orçamentos mensais** — definir limites por categoria com indicadores visuais (verde/amarelo/vermelho)
+- **Metas de economia** — acompanhar progresso mensal
+- **Dashboard interativo** — cards de resumo, gráfico de pizza por categoria, gráfico de linha temporal (30 dias), gastos recentes
+- **Exportação** — download de dados em CSV e JSON
+- **Dark mode** — toggle no header, respeita preferência do sistema
+- **Responsivo** — layout mobile-first que funciona em qualquer dispositivo
+
+## Stack Tecnológica
+
+| Camada | Tecnologia |
+|--------|-----------|
+| Framework | Next.js 16 (App Router, TypeScript strict) |
+| Estilização | Tailwind CSS 4 |
+| Componentes UI | **shadcn/ui** (Radix UI primitives) |
+| Banco de Dados | SQLite + Drizzle ORM |
+| Autenticação | Auth.js v5 (NextAuth) — JWT strategy |
+| Validação | Zod v4 |
+| Gráficos | Recharts |
+| Testes | Vitest + Testing Library |
+| Linting | ESLint (next/core-web-vitals + typescript) + Prettier |
+| Package Manager | pnpm |
+
+## Instalação
+
+### Pré-requisitos
+
+- Node.js 20+
+- pnpm 9+
+
+### Passo a passo
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# 1. Clone o repositório
+git clone <url-do-repositorio>
+cd fintrack
+
+# 2. Instale as dependências
+pnpm install
+
+# 3. Configure o ambiente
+cp .env.example .env
+# Edite o .env e defina AUTH_SECRET (gere com: openssl rand -base64 32)
+
+# 4. Crie o banco de dados
+mkdir -p data
+pnpm db:push
+
+# 5. Inicie o servidor de desenvolvimento
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse [http://localhost:3000](http://localhost:3000) para usar a aplicação.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts Disponíveis
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Comando | Descrição |
+|---------|-----------|
+| `pnpm dev` | Servidor de desenvolvimento |
+| `pnpm build` | Build de produção |
+| `pnpm start` | Iniciar servidor de produção |
+| `pnpm test` | Rodar testes unitários |
+| `pnpm lint` | Verificar linting |
+| `pnpm lint:fix` | Corrigir problemas de lint |
+| `pnpm format` | Formatar código com Prettier |
+| `pnpm typecheck` | Verificar tipos TypeScript |
+| `pnpm db:push` | Aplicar schema no banco |
+| `pnpm db:studio` | Abrir Drizzle Studio |
 
-## Learn More
+## Testes
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm test
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Os testes unitários cobrem a lógica de negócio pura:
+- Formatação de moeda (centavos ↔ reais)
+- Cálculo de uso de orçamento
+- Agregação por categoria e por dia
+- Validação de input de gastos
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Lint
 
-## Deploy on Vercel
+```bash
+pnpm lint
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Screenshots
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Screenshots serão adicionadas após deploy inicial.
+
+## Versão
+
+**1.0.0**
+
+## Autor
+
+João Gabriel R. Rocha
+
+## Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
