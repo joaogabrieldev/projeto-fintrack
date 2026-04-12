@@ -41,7 +41,8 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 
 - Porque eu escolhi o SQLite ao invés de um banco em PostgreSQL?
 
-  O SQLite tem como uma das características principais ser um banco de dados embutido e não cliente-servidor, logo deixa  
+  O SQLite tem como uma das características principais ser um banco de dados embutido e não cliente-servidor, logo deixa a arquitetura da aplicação muito mais simples, rápida e barata, eliminando a dor de cabeça de configurar e manter um servidor dedicado rodando 24 horas por dia. Como os dados ficam armazenados em um único arquivo local colado na aplicação, a latência de rede é reduzida a zero, o que garante uma velocidade absurda no desenvolvimento.
+
 
 ## Instalação
 
