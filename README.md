@@ -1,4 +1,4 @@
-# FinTrack — Gerenciador de Gastos Pessoais
+# FinTrack — Gerenciador de Gastos Pessoais 
 
 ## O Problema
 
@@ -38,6 +38,10 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 | Testes | Vitest + Testing Library |
 | Linting | ESLint (next/core-web-vitals + typescript) + Prettier |
 | Package Manager | pnpm |
+
+- Porque eu escolhi o SQLite ao invés de um banco em PostgreSQL?
+
+  O SQLite tem como uma das características principais ser um banco de dados embutido e não cliente-servidor, logo deixa  
 
 ## Instalação
 
@@ -103,13 +107,9 @@ Os testes unitários cobrem a lógica de negócio pura:
 pnpm lint
 ```
 
-## Screenshots
-
-> Screenshots serão adicionadas após deploy inicial.
-
 ## Versão
 
-**1.0.0**
+**1.0.0 (MVP)** 
 
 ## Autor
 
