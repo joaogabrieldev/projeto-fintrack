@@ -7,6 +7,9 @@ import { eq } from "drizzle-orm";
 import "./types";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: process.env.AUTH_SECRET,
+  // Necessário atrás do proxy da Vercel (Host / X-Forwarded-*); evita 400 em fluxos de auth.
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
@@ -62,5 +65,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   pages: {
     signIn: "/login",
+    // Erros de auth vão para /login com ?error= em vez de ficar em /api/auth/error (GET “nuo” lá retorna 400).
+    error: "/login",
   },
 });
