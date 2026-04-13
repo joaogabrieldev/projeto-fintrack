@@ -1,4 +1,4 @@
-# FinTrack — Gerenciador de Gastos Pessoais 
+# FinTrack — Gerenciador de Gastos Pessoais
 
 ## O Problema
 
@@ -26,23 +26,22 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 
 ## Stack Tecnológica
 
-| Camada | Tecnologia |
-|--------|-----------|
-| Framework | Next.js 16 (App Router, TypeScript strict) |
-| Estilização | Tailwind CSS 4 |
-| Componentes UI | **shadcn/ui** (Radix UI primitives) |
-| Banco de Dados | SQLite + Drizzle ORM |
-| Autenticação | Auth.js v5 (NextAuth) — JWT strategy |
-| Validação | Zod v4 |
-| Gráficos | Recharts |
-| Testes | Vitest + Testing Library |
-| Linting | ESLint (next/core-web-vitals + typescript) + Prettier |
-| Package Manager | pnpm |
+| Camada          | Tecnologia                                            |
+| --------------- | ----------------------------------------------------- |
+| Framework       | Next.js 16 (App Router, TypeScript strict)            |
+| Estilização     | Tailwind CSS 4                                        |
+| Componentes UI  | **shadcn/ui** (Radix UI primitives)                   |
+| Banco de Dados  | SQLite + Drizzle ORM                                  |
+| Autenticação    | Auth.js v5 (NextAuth) — JWT strategy                  |
+| Validação       | Zod v4                                                |
+| Gráficos        | Recharts                                              |
+| Testes          | Vitest + Testing Library                              |
+| Linting         | ESLint (next/core-web-vitals + typescript) + Prettier |
+| Package Manager | pnpm                                                  |
 
 - Porque eu escolhi o SQLite ao invés de um banco em PostgreSQL?
 
   O SQLite tem como uma das características principais ser um banco de dados embutido e não cliente-servidor, logo deixa a arquitetura da aplicação muito mais simples, rápida e barata, eliminando a dor de cabeça de configurar e manter um servidor dedicado rodando 24 horas por dia. Como os dados ficam armazenados em um único arquivo local colado na aplicação, a latência de rede é reduzida a zero, o que garante uma velocidade absurda no desenvolvimento.
-
 
 ## Instalação
 
@@ -77,18 +76,18 @@ Acesse [http://localhost:3000](http://localhost:3000) para usar a aplicação.
 
 ## Scripts Disponíveis
 
-| Comando | Descrição |
-|---------|-----------|
-| `pnpm dev` | Servidor de desenvolvimento |
-| `pnpm build` | Build de produção |
-| `pnpm start` | Iniciar servidor de produção |
-| `pnpm test` | Rodar testes unitários |
-| `pnpm lint` | Verificar linting |
-| `pnpm lint:fix` | Corrigir problemas de lint |
-| `pnpm format` | Formatar código com Prettier |
-| `pnpm typecheck` | Verificar tipos TypeScript |
-| `pnpm db:push` | Aplicar schema no banco |
-| `pnpm db:studio` | Abrir Drizzle Studio |
+| Comando          | Descrição                    |
+| ---------------- | ---------------------------- |
+| `pnpm dev`       | Servidor de desenvolvimento  |
+| `pnpm build`     | Build de produção            |
+| `pnpm start`     | Iniciar servidor de produção |
+| `pnpm test`      | Rodar testes unitários       |
+| `pnpm lint`      | Verificar linting            |
+| `pnpm lint:fix`  | Corrigir problemas de lint   |
+| `pnpm format`    | Formatar código com Prettier |
+| `pnpm typecheck` | Verificar tipos TypeScript   |
+| `pnpm db:push`   | Aplicar schema no banco      |
+| `pnpm db:studio` | Abrir Drizzle Studio         |
 
 ## Testes
 
@@ -97,6 +96,7 @@ pnpm test
 ```
 
 Os testes unitários cobrem a lógica de negócio pura:
+
 - Formatação de moeda (centavos ↔ reais)
 - Cálculo de uso de orçamento
 - Agregação por categoria e por dia
@@ -110,11 +110,22 @@ pnpm lint
 
 ## Versão
 
-**1.0.0 (MVP)** 
+**1.0.0 (MVP)**
 
 ## Autor
 
-João Gabriel R. Rocha
+<div align="center">
+
+### João Gabriel R. Rocha
+
+**Fullstack Developer**
+
+[![GitHub](https://img.shields.io/badge/GitHub-joaogabrieldev-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/joaogabrieldev)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-João_Gabriel-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/joaogabrielrocha)
+
+</div>
+
+---
 
 ## Licença
 
