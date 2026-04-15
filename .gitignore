@@ -62,3 +62,7 @@ access.md
 
 # Others
 .claude/settings.local.json
+
+# A.I Artifacts
+repomix-output.xml
+repomix-output.txt
