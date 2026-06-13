@@ -1,4 +1,4 @@
-import { type Expense, type Category, type Budget, type Goal } from "./db/schema";
+import { type Expense } from "./db/schema";
 
 // Função 1: Exportar qualquer dado para JSON
 export const exportToJSON = <T>(data: T[], filename: string) => {
@@ -15,7 +15,7 @@ export const exportToJSON = <T>(data: T[], filename: string) => {
 };
 
 // Função 2: Exportar qualquer dado para CSV com tratamento de textos e datas
-export const exportToCSV = <T extends Record<string, any>>(data: T[], filename: string) => {
+export const exportToCSV = <T extends Record<string, unknown>>(data: T[], filename: string) => {
   if (!data || data.length === 0) return;
 
   const headers = Object.keys(data[0]);
