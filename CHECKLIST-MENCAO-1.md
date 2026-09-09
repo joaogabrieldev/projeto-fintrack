@@ -62,18 +62,3 @@ Deploy
 ```
 
 A equipe deve conseguir explicar o papel de cada etapa.
-
-## Parte do Carlos Eduardo
-
-- [ ] `docs/ambientes.md`
-- [ ] `.env.example` revisado
-- [ ] Checklist de execução/homologação
-- [ ] Documentação final
-- [ ] Evidências dos ambientes
-- [ ] Parte visual dos slides
-- [ ] Fala de aproximadamente 5 minutos
-- [ ] Explicar ambientes
-- [ ] Explicar variáveis
-- [ ] Explicar como a documentação permite executar o projeto
-- [ ] Participar da demonstração final
-- [ ] Explicar dificuldades/conclusão
