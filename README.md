@@ -74,6 +74,16 @@ pnpm dev
 
 Acesse [http://localhost:3000](http://localhost:3000) para usar a aplicação.
 
+### Docker
+
+A imagem é publicada no Docker Hub pelo workflow `.github/workflows/docker.yml` a cada push na `main`, na `develop` e em tags `v*`.
+
+```bash
+docker run -d -p 3000:3000 --env-file .env <usuario-dockerhub>/fintrack:latest
+```
+
+Configuração dos secrets, tags publicadas e uso com SQLite local: [docs/docker.md](docs/docker.md).
+
 ## Scripts Disponíveis
 
 | Comando          | Descrição                    |
