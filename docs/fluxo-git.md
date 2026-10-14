@@ -2,9 +2,27 @@
 
 ## 1. Objetivo
 
-Padronizar o trabalho da equipe e garantir que alterações sejam desenvolvidas, revisadas, testadas e integradas de maneira previsível.
+Este documento define o fluxo de trabalho com Git utilizado pela equipe do projeto
+FinTrack, organizando branches, commits, Pull Requests e merges.
 
-## 2. Branches
+O objetivo é padronizar o trabalho da equipe, evitar alterações diretamente na branch
+principal e garantir que as mudanças sejam desenvolvidas, revisadas, testadas e
+integradas de maneira previsível.
+
+---
+
+## 2. Estrutura de branches
+
+O projeto utiliza as seguintes branches:
+
+- `main`: versão estável do sistema, destinada à produção e à apresentação.
+- `develop`: branch de integração das funcionalidades desenvolvidas pela equipe.
+- `feature/*`: branches utilizadas para desenvolver novas funcionalidades ou
+  realizar alterações específicas.
+- `release/*`: branches utilizadas para preparar uma nova versão para publicação.
+- `hotfix/*`: branches utilizadas somente para correções urgentes em produção.
+
+### Exemplo
 
 ```text
 main
@@ -82,7 +100,8 @@ git push -u origin feature/documentacao-ambientes
 
 ## 6. Pull Request
 
-Todo trabalho deve ser integrado por Pull Request.
+Todo trabalho deve ser integrado por Pull Request, usando o template definido em
+`.github/PULL_REQUEST_TEMPLATE.md`.
 
 O PR deve informar:
 
@@ -134,4 +153,5 @@ git merge develop
 
 ## 9. Critério de aceite
 
-Qualquer integrante deve conseguir criar uma branch, abrir um Pull Request e seguir o fluxo definido sem depender de instruções externas.
+Qualquer integrante deve conseguir criar uma branch, abrir um Pull Request e seguir o
+fluxo definido sem depender de instruções externas.

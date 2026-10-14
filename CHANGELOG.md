@@ -2,6 +2,18 @@
 
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
+## [Unreleased]
+
+### Added
+
+- `Dockerfile` multi-stage com Next.js `output: "standalone"` e usuário sem privilégios
+- Workflow `docker.yml` que publica a imagem no Docker Hub (`main`, `develop` e tags `v*`)
+- Documentação de Docker em `docs/docker.md`
+
+### Removed
+
+- `Dockerfile.txt` e `nginx.conf`, que serviam um build estático (React) incompatível com o Next.js do projeto
+
 ## [1.0.0] - 2026-04-11
 
 ### Added
