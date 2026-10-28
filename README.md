@@ -142,68 +142,299 @@ pnpm lint
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 ---
-## Cenários de uso do sistema
+## Cenários de testes das APIs
 
-Esta seção descreve os principais cenários de utilização do FinTrack. Esses cenários serão utilizados como referência para a criação da automação de CI/CD.
+Os cenários abaixo descrevem os testes que serão utilizados para validar as APIs do FinTrack e dar continuidade à automação do pipeline de CI/CD.
 
-### Caminho feliz: cadastrar uma despesa
+Além do código de status HTTP, deve ser verificado o conteúdo da resposta retornada pela API.
 
-**Objetivo:** verificar se o usuário consegue cadastrar uma despesa com informações válidas.
+### Pré-condições gerais
 
-**Pré-condições:**
+- A aplicação deve estar em execução.
+- O banco de dados deve estar configurado.
+- Os cenários que utilizam despesas devem ser executados com um usuário autenticado.
+- Os testes de erro interno devem utilizar um ambiente de testes controlado.
+- Nenhuma resposta de erro deve expor stack trace, credenciais, caminhos internos ou detalhes técnicos do banco de dados.
 
-- A aplicação está em execução.
-- O usuário possui uma conta cadastrada.
-- O usuário está autenticado no sistema.
+---
 
-**Passos:**
+### Cenário 1 — Cadastro de usuário com sucesso
 
-1. Acessar o sistema.
-2. Fazer login com e-mail e senha válidos.
-3. Acessar a tela de despesas.
-4. Selecionar a opção para adicionar uma nova despesa.
-5. Informar a descrição: `Compra no mercado`.
-6. Informar o valor: `150,00`.
-7. Selecionar uma categoria.
-8. Informar uma data válida.
-9. Confirmar o cadastro.
+**Objetivo:** verificar se a API cria um novo usuário quando recebe dados válidos.
 
-**Resultado esperado:**
+- **Endpoint:** `/api/register`
+- **Método HTTP:** `POST`
+- **Dados enviados:**
 
-- A despesa é cadastrada com sucesso.
-- A despesa aparece na lista de despesas.
-- O valor é considerado no resumo financeiro e no dashboard.
+```json
+{
+  "name": "Usuário de Teste",
+  "email": "usuario.teste@example.com",
+  "password": "Senha123!"
+}
+```
 
-### Caminho triste: tentar cadastrar uma despesa inválida
+- **Status esperado:** `201 Created`
+- **Resposta esperada:**
 
-**Objetivo:** verificar se o sistema impede o cadastro de informações inválidas.
+```json
+{
+  "message": "Usuário criado com sucesso"
+}
+```
 
-**Pré-condições:**
+Também deve ser verificado que a senha não seja retornada na resposta.
 
-- A aplicação está em execução.
-- O usuário está autenticado no sistema.
+---
 
-**Passos:**
+### Cenário 2 — Consulta de despesas com sucesso
 
-1. Acessar a tela de despesas.
-2. Selecionar a opção para adicionar uma nova despesa.
-3. Deixar a descrição vazia.
-4. Informar um valor negativo ou igual a zero.
-5. Informar uma data inválida ou deixar a data vazia.
-6. Tentar confirmar o cadastro.
+**Objetivo:** verificar se a API retorna as despesas pertencentes ao usuário autenticado.
 
-**Resultado esperado:**
+- **Endpoint:** `/api/expenses`
+- **Método HTTP:** `GET`
+- **Dados enviados:** nenhum corpo obrigatório.
+- **Status esperado:** `200 OK`
+- **Resposta esperada:** uma lista JSON com as despesas do usuário autenticado.
 
-- A despesa não é cadastrada.
-- Uma mensagem de validação é exibida.
-- O usuário permanece na tela de cadastro.
-- Nenhuma despesa inválida aparece na lista.
+Exemplo:
 
-### Critério de aceitação
+```json
+[
+  {
+    "id": "id-da-despesa",
+    "userId": "id-do-usuario",
+    "categoryId": null,
+    "amountCents": 15000,
+    "description": "Compra no mercado",
+    "date": "2026-10-28T12:00:00.000Z",
+    "createdAt": "2026-10-28T12:00:00.000Z"
+  }
+]
+```
 
-O cenário será considerado aprovado quando:
+A API não deve retornar despesas pertencentes a outros usuários.
 
-- O caminho feliz permitir o cadastro correto da despesa.
-- O caminho triste impedir o cadastro inválido.
-- As mensagens e os resultados apresentados forem compatíveis com o comportamento esperado do sistema.
+---
+
+### Cenário 3 — Cadastro de despesa com sucesso
+
+**Objetivo:** verificar se a API cria uma despesa quando recebe dados válidos.
+
+- **Endpoint:** `/api/expenses`
+- **Método HTTP:** `POST`
+- **Dados enviados:**
+
+```json
+{
+  "amount": 15000,
+  "description": "Compra no mercado",
+  "categoryId": null,
+  "date": "2026-10-28T12:00:00.000Z"
+}
+```
+
+O campo `amount` deve ser enviado em centavos. Nesse exemplo, `15000` representa R$ 150,00.
+
+- **Status esperado:** `201 Created`
+- **Resposta esperada:**
+
+```json
+{
+  "id": "id-gerado-pela-api"
+}
+```
+
+Também deve ser verificado que a despesa foi realmente salva para o usuário autenticado.
+
+---
+
+### Cenário 4 — Cadastro de despesa com requisição inválida
+
+**Objetivo:** verificar se a API rejeita dados inválidos.
+
+- **Endpoint:** `/api/expenses`
+- **Método HTTP:** `POST`
+- **Dados enviados:**
+
+```json
+{
+  "amount": -100,
+  "description": "",
+  "categoryId": null,
+  "date": "data-invalida"
+}
+```
+
+- **Status esperado:** `400 Bad Request`
+- **Resposta esperada:**
+
+```json
+{
+  "error": "Dados inválidos",
+  "details": {}
+}
+```
+
+O campo `details` deve conter as informações de validação retornadas pelo schema. A despesa não deve ser criada.
+
+Também devem ser testados os seguintes dados inválidos:
+
+- valor igual a zero;
+- valor negativo;
+- valor acima do limite permitido;
+- descrição vazia;
+- descrição com mais de 200 caracteres;
+- data inválida;
+- data com mais de um dia no futuro;
+- data anterior a `01/01/2000`;
+- ausência de campo obrigatório.
+
+---
+
+### Cenário 5 — Consulta de despesas sem autenticação
+
+**Objetivo:** verificar se a API impede o acesso de usuários não autenticados.
+
+- **Endpoint:** `/api/expenses`
+- **Método HTTP:** `GET`
+- **Dados enviados:** nenhum.
+- **Condição:** executar a requisição sem sessão autenticada.
+- **Status esperado:** `401 Unauthorized`
+- **Resposta esperada:**
+
+```json
+{
+  "error": "Não autorizado"
+}
+```
+
+A API não deve retornar nenhuma despesa.
+
+---
+
+### Cenário 6 — Atualização de despesa com sucesso
+
+**Objetivo:** verificar se uma despesa existente pode ser atualizada pelo usuário proprietário.
+
+- **Endpoint:** `/api/expenses/:id`
+- **Método HTTP:** `PUT`
+- **Dados enviados:**
+
+```json
+{
+  "amount": 18000,
+  "description": "Compra no mercado atualizada",
+  "categoryId": null,
+  "date": "2026-10-28T12:00:00.000Z"
+}
+```
+
+- **Status esperado:** `200 OK`
+- **Resposta esperada:**
+
+```json
+{
+  "success": true
+}
+```
+
+A API deve atualizar somente uma despesa pertencente ao usuário autenticado.
+
+---
+
+### Cenário 7 — Exclusão de despesa com sucesso
+
+**Objetivo:** verificar se uma despesa existente pode ser removida pelo usuário proprietário.
+
+- **Endpoint:** `/api/expenses/:id`
+- **Método HTTP:** `DELETE`
+- **Dados enviados:** nenhum corpo obrigatório.
+- **Status esperado:** `200 OK`
+- **Resposta esperada:**
+
+```json
+{
+  "success": true
+}
+```
+
+Depois da operação, a despesa não deve mais aparecer na consulta do usuário.
+
+---
+
+### Cenário 8 — Despesa não encontrada
+
+**Objetivo:** verificar o comportamento quando o usuário tenta alterar ou excluir uma despesa inexistente ou que pertence a outro usuário.
+
+- **Endpoint:** `/api/expenses/:id`
+- **Método HTTP:** `DELETE`
+- **Dados enviados:** nenhum corpo obrigatório.
+- **Status esperado:** `404 Not Found`
+- **Resposta esperada:**
+
+```json
+{
+  "error": "Gasto não encontrado"
+}
+```
+
+A API não deve alterar ou excluir nenhum registro indevidamente.
+
+O mesmo comportamento deve ser validado no método `PUT`.
+
+---
+
+### Cenário 9 — Erro interno controlado
+
+**Objetivo:** verificar se a API trata uma falha interna sem expor detalhes técnicos.
+
+- **Endpoint:** `/api/expenses`
+- **Método HTTP:** `GET`
+- **Dados enviados:** nenhum.
+- **Condição do teste:** simular uma falha controlada no acesso ao banco de dados no ambiente de testes.
+- **Status esperado:** `500 Internal Server Error`
+- **Resposta esperada em ambiente de teste ou produção:**
+
+```json
+{
+  "error": "Erro interno do servidor"
+}
+```
+
+A resposta não deve expor:
+
+- stack trace;
+- nome de tabela;
+- caminho de arquivo;
+- credenciais;
+- token;
+- detalhes internos do banco;
+- mensagem técnica da exceção.
+
+Esse cenário deve ser executado somente com uma falha simulada e controlada. Não é necessário provocar uma falha real no ambiente de produção.
+
+---
+
+### Critérios de aceitação
+
+A documentação será considerada válida quando cada cenário informar:
+
+- endpoint;
+- método HTTP;
+- dados enviados;
+- condição do teste;
+- status esperado;
+- conteúdo esperado da resposta.
+
+Também devem ser verificados:
+
+- o corpo da resposta, além do código HTTP;
+- a criação correta dos recursos;
+- a rejeição de dados inválidos;
+- o isolamento dos dados entre usuários;
+- a ausência de informações técnicas nas respostas de erro interno.
+
+> Observação: a rota de alteração de despesa utiliza `PUT /api/expenses/:id`, e não `PATCH`.
+
 
