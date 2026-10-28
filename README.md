@@ -130,3 +130,68 @@ pnpm lint
 ## Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+## Cenários de uso do sistema
+
+Esta seção descreve os principais cenários de utilização do FinTrack. Esses cenários serão utilizados como referência para a criação da automação de CI/CD.
+
+### Caminho feliz: cadastrar uma despesa
+
+**Objetivo:** verificar se o usuário consegue cadastrar uma despesa com informações válidas.
+
+**Pré-condições:**
+
+- A aplicação está em execução.
+- O usuário possui uma conta cadastrada.
+- O usuário está autenticado no sistema.
+
+**Passos:**
+
+1. Acessar o sistema.
+2. Fazer login com e-mail e senha válidos.
+3. Acessar a tela de despesas.
+4. Selecionar a opção para adicionar uma nova despesa.
+5. Informar a descrição: `Compra no mercado`.
+6. Informar o valor: `150,00`.
+7. Selecionar uma categoria.
+8. Informar uma data válida.
+9. Confirmar o cadastro.
+
+**Resultado esperado:**
+
+- A despesa é cadastrada com sucesso.
+- A despesa aparece na lista de despesas.
+- O valor é considerado no resumo financeiro e no dashboard.
+
+### Caminho triste: tentar cadastrar uma despesa inválida
+
+**Objetivo:** verificar se o sistema impede o cadastro de informações inválidas.
+
+**Pré-condições:**
+
+- A aplicação está em execução.
+- O usuário está autenticado no sistema.
+
+**Passos:**
+
+1. Acessar a tela de despesas.
+2. Selecionar a opção para adicionar uma nova despesa.
+3. Deixar a descrição vazia.
+4. Informar um valor negativo ou igual a zero.
+5. Informar uma data inválida ou deixar a data vazia.
+6. Tentar confirmar o cadastro.
+
+**Resultado esperado:**
+
+- A despesa não é cadastrada.
+- Uma mensagem de validação é exibida.
+- O usuário permanece na tela de cadastro.
+- Nenhuma despesa inválida aparece na lista.
+
+### Critério de aceitação
+
+O cenário será considerado aprovado quando:
+
+- O caminho feliz permitir o cadastro correto da despesa.
+- O caminho triste impedir o cadastro inválido.
+- As mensagens e os resultados apresentados forem compatíveis com o comportamento esperado do sistema.
