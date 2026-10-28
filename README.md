@@ -130,3 +130,64 @@ pnpm lint
 ## Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+## Cenários de teste
+
+Os cenários abaixo descrevem o fluxo principal de uso do FinTrack e serão utilizados como referência para os testes automatizados e para o processo de CI/CD.
+
+### Caminho feliz: cadastrar usuário, fazer login e registrar gasto
+
+**Objetivo:** validar que um usuário consegue criar uma conta, acessar o sistema e registrar uma despesa.
+
+**Pré-condições:**
+
+- A aplicação está em execução em `http://localhost:3000`.
+- O banco de dados foi configurado.
+- O usuário ainda não possui uma conta com o e-mail utilizado.
+
+**Passos:**
+
+1. Acessar `http://localhost:3000/register`.
+2. Informar um nome válido.
+3. Informar um e-mail válido, por exemplo `teste@exemplo.com`.
+4. Informar uma senha válida.
+5. Confirmar o cadastro.
+6. Acessar a tela de login.
+7. Informar o mesmo e-mail e senha.
+8. Confirmar o login.
+9. Acessar o dashboard.
+10. Cadastrar uma despesa com descrição, valor, categoria e data válidos.
+11. Salvar a despesa.
+12. Verificar se a despesa aparece na lista e no resumo do dashboard.
+
+**Resultado esperado:**
+
+- O usuário é cadastrado com sucesso.
+- O login é realizado.
+- O dashboard é exibido.
+- A despesa é salva.
+- A despesa aparece na listagem e nos valores do dashboard.
+
+### Caminho triste: tentar cadastrar dados inválidos
+
+**Objetivo:** validar que o sistema rejeita informações inválidas e não salva dados incorretos.
+
+**Passos:**
+
+1. Acessar a tela de cadastro.
+2. Informar um e-mail inválido ou uma senha menor que o mínimo exigido.
+3. Tentar concluir o cadastro.
+4. Verificar a mensagem de validação.
+5. Tentar cadastrar uma despesa com valor negativo, descrição vazia ou data muito futura.
+
+**Resultado esperado:**
+
+- O cadastro inválido é rejeitado.
+- Uma mensagem de erro é exibida.
+- Nenhum usuário inválido é criado.
+- A despesa inválida não é salva.
+- O sistema continua funcionando normalmente.
+
+
+
+
