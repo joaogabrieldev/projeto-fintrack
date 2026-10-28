@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { centsToReais, reaisToCents } from "@/lib/business/currency";
 import { Plus, Search, Pencil, Trash2, Loader2, Receipt } from "lucide-react";
 import { toast } from "sonner";
@@ -65,6 +66,8 @@ export default function ExpensesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -164,14 +167,18 @@ export default function ExpensesPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Deseja realmente excluir este gasto?")) return;
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await api.delete(`/api/expenses/${id}`);
+      await api.delete(`/api/expenses/${deleteTarget.id}`);
       toast.success("Gasto excluído");
+      setDeleteTarget(null);
       fetchData();
     } catch {
       toast.error("Erro ao excluir");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -282,7 +289,7 @@ export default function ExpensesPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(expense.id)}
+                            onClick={() => setDeleteTarget(expense)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -359,6 +366,22 @@ export default function ExpensesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Excluir gasto"
+        description={
+          deleteTarget
+            ? `Tem certeza que deseja excluir "${deleteTarget.description}"? Esta ação não pode ser desfeita.`
+            : undefined
+        }
+        confirmLabel="Excluir"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
