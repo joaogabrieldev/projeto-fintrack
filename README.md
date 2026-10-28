@@ -141,6 +141,7 @@ pnpm lint
 
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
+
 ## Cenários de uso do sistema
 
 Esta seção descreve os principais cenários de utilização do FinTrack. Esses cenários serão utilizados como referência para a criação da automação de CI/CD.
