@@ -1,67 +1,53 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { categories, users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
-import { z } from "zod/v4";
-
-const categorySchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório").max(50),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor deve ser hex válida"),
-  icon: z.string().min(1, "Ícone é obrigatório"),
-});
+import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { categories } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { auth } from '@/lib/auth'; // ✅ Caminho correto
 
 export async function GET() {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return unauthorizedResponse();
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-  // Check user exists in DB (session JWT may outlive a DB reset)
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
-  if (!user) {
-    return NextResponse.json({ error: "Usuário não encontrado. Faça login novamente." }, { status: 401 });
-  }
-
-  let result = await db.select().from(categories).where(eq(categories.userId, userId));
-
-  // Auto-seed default categories if user has none
-  if (result.length === 0) {
-    const { seedCategoriesForUser } = await import("@/lib/db/seed-categories");
-    await seedCategoriesForUser(userId);
-    result = await db.select().from(categories).where(eq(categories.userId, userId));
-  }
-
-  return NextResponse.json(result);
+  const allCategories = await db.select().from(categories).where(eq(categories.userId, session.user.id));
+  return NextResponse.json(allCategories);
 }
 
-export async function POST(req: Request) {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return unauthorizedResponse();
+export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-  try {
-    const body = await req.json();
-    const result = categorySchema.safeParse(body);
+  const { name, color, icon } = await request.json();
+  const newCategory = await db.insert(categories).values({
+    id: crypto.randomUUID(), // ✅ Gera o id obrigatório
+    userId: session.user.id, // ✅ Associa ao usuário logado
+    name,
+    color,
+    icon,
+  }).returning();
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Dados inválidos", details: result.error.flatten() },
-        { status: 400 }
-      );
-    }
+  return NextResponse.json(newCategory, { status: 201 });
+}
 
-    const id = crypto.randomUUID();
-    await db.insert(categories).values({
-      id,
-      userId,
-      ...result.data,
-    });
+export async function PUT(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    return NextResponse.json({ id }, { status: 201 });
-  } catch (error) {
-    console.error("[POST /api/categories]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  const { id, name, color, icon } = await request.json();
+  const updatedCategory = await db.update(categories)
+    .set({ name, color, icon })
+    .where(and(eq(categories.id, id), eq(categories.userId, session.user.id)))
+    .returning();
+
+  return NextResponse.json(updatedCategory);
+}
+
+export async function DELETE(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+  const { id } = await request.json();
+  await db.delete(categories)
+    .where(and(eq(categories.id, id), eq(categories.userId, session.user.id)));
+
+  return NextResponse.json({ message: 'Categoria eliminada' });
 }
