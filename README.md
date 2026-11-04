@@ -112,6 +112,18 @@ Os testes unitários cobrem a lógica de negócio pura:
 - Agregação por categoria e por dia
 - Validação de input de gastos
 
+### Teste de API — `POST /api/expenses`
+
+Além dos testes de negócio, há um cenário de API implementado em código em
+`tests/api/expenses.route.test.ts`. Ele chama diretamente o Route Handler
+`POST` de `src/app/api/expenses/route.ts` (com a autenticação e o banco de
+dados substituídos por mocks) e cobre:
+
+- **Sucesso:** dados válidos → `201 Created` com o `id` da despesa (Cenário 3).
+- **Erro:** dados inválidos → `400 Bad Request` com `{ error: "Dados inválidos" }`,
+  sem persistir nada (Cenário 4).
+- **Autorização:** sem usuário autenticado → `401 Não autorizado` (base do Cenário 5).
+
 ## Lint
 
 ```bash
@@ -247,6 +259,8 @@ O campo `amount` deve ser enviado em centavos. Nesse exemplo, `15000` representa
 
 Também deve ser verificado que a despesa foi realmente salva para o usuário autenticado.
 
+> ✅ **Implementado em código** em `tests/api/expenses.route.test.ts`.
+
 ---
 
 ### Cenário 4 — Cadastro de despesa com requisição inválida
@@ -277,6 +291,8 @@ Também deve ser verificado que a despesa foi realmente salva para o usuário au
 ```
 
 O campo `details` deve conter as informações de validação retornadas pelo schema. A despesa não deve ser criada.
+
+> ✅ **Implementado em código** em `tests/api/expenses.route.test.ts`.
 
 Também devem ser testados os seguintes dados inválidos:
 
