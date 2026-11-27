@@ -1,0 +1,211 @@
+# Testes das regras de alerta: rode com
+#   docker run --rm -v "$PWD/observability/prometheus:/etc/prometheus" --entrypoint promtool \
+#     prom/prometheus:v3.16.0 test rules /etc/prometheus/tests/alert-rules.test.yml
+#
+# Cada cenário simula as séries de um incidente e confere se o alerta dispara
+# (ou não) no tempo certo. Um incidente real pode virar um cenário novo aqui.
+
+rule_files:
+  - ../rules/alert-rules.yml
+  - ../rules/slo-recording-rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  # A aplicação para de responder ao scrape a partir do minuto 2.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="fintrack", instance="app:3000"}'
+        values: "1 1 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: FintrackApiDown
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: FintrackApiDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: fintrack
+              instance: app:3000
+            exp_annotations:
+              summary: "FinTrack fora do ar"
+              description: "O Prometheus não consegue coletar /api/metrics em app:3000 há 2 minutos."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackapidown"
+
+  # Cenário do slide de correlação: clientes relatam falhas ao salvar gastos.
+  # 100 req/min com sucesso e 10 req/min com 5xx = 9,09% de erro, sustentado.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{job="fintrack", method="POST", route="/api/expenses", status="201"}'
+        values: "0+100x20"
+      - series: 'http_requests_total{job="fintrack", method="POST", route="/api/expenses", status="500"}'
+        values: "0+10x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: FintrackHighErrorRate
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: FintrackHighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Taxa de erros 5xx acima de 5%"
+              description: "9.091% das requisições da API terminaram em 5xx nos últimos 5 minutos."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackhigherrorrate"
+
+  # Erro esporádico (1% das requisições) não deve acordar ninguém.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{job="fintrack", method="GET", route="/api/expenses", status="200"}'
+        values: "0+99x20"
+      - series: 'http_requests_total{job="fintrack", method="GET", route="/api/expenses", status="500"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: FintrackHighErrorRate
+        exp_alerts: []
+
+  # 4% de erro por horas: abaixo do alerta de 5%, mas consome o error budget 8x mais rápido.
+  - interval: 5m
+    input_series:
+      - series: 'http_requests_total{job="fintrack", method="GET", route="/api/dashboard", status="200"}'
+        values: "0+480x84"
+      - series: 'http_requests_total{job="fintrack", method="GET", route="/api/dashboard", status="503"}'
+        values: "0+20x84"
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: FintrackHighErrorRate
+        exp_alerts: []
+      - eval_time: 7h
+        alertname: FintrackErrorBudgetBurn
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Error budget do SLO de disponibilidade queimando rápido"
+              description: "A taxa de 5xx nas últimas 6 horas consome o error budget de 30 dias 6x mais rápido que o sustentável."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackerrorbudgetburn"
+
+  # Latência: 10 req/min, 9 delas entre 1 s e 2,5 s. O p95 fica em torno de 2,4 s.
+  - interval: 1m
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{job="fintrack", le="0.5"}'
+        values: "0+1x20"
+      - series: 'http_request_duration_seconds_bucket{job="fintrack", le="1"}'
+        values: "0+1x20"
+      - series: 'http_request_duration_seconds_bucket{job="fintrack", le="2.5"}'
+        values: "0+10x20"
+      - series: 'http_request_duration_seconds_bucket{job="fintrack", le="+Inf"}'
+        values: "0+10x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: FintrackHighLatencyP95
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: FintrackHighLatencyP95
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Latência p95 da API acima de 1 s"
+              description: "95% das requisições levam até 2.417s; investigue banco, rota e saturação."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackhighlatencyp95"
+
+  # Consultas em expenses ficam lentas (todas entre 0,5 s e 1 s); users segue rápida.
+  - interval: 1m
+    input_series:
+      - series: 'db_query_duration_seconds_bucket{job="fintrack", operation="select", table="expenses", le="0.5"}'
+        values: "0x20"
+      - series: 'db_query_duration_seconds_bucket{job="fintrack", operation="select", table="expenses", le="1"}'
+        values: "0+20x20"
+      - series: 'db_query_duration_seconds_bucket{job="fintrack", operation="select", table="expenses", le="+Inf"}'
+        values: "0+20x20"
+      - series: 'db_query_duration_seconds_bucket{job="fintrack", operation="select", table="users", le="0.01"}'
+        values: "0+20x20"
+      - series: 'db_query_duration_seconds_bucket{job="fintrack", operation="select", table="users", le="+Inf"}'
+        values: "0+20x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: FintrackSlowDatabaseQueries
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              table: expenses
+            exp_annotations:
+              summary: "Consultas lentas na tabela expenses"
+              description: "O p95 das consultas em expenses está em 975ms há 10 minutos."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackslowdatabasequeries"
+
+  # db_timeout repetido: 2 falhas por minuto na tabela budgets.
+  - interval: 1m
+    input_series:
+      - series: 'db_query_errors_total{job="fintrack", operation="select", table="budgets"}'
+        values: "0+2x20"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: FintrackDatabaseErrors
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              table: budgets
+            exp_annotations:
+              summary: "Falhas repetidas no banco (tabela budgets)"
+              description: "Mais de 5 consultas falharam em budgets nos últimos 5 minutos."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackdatabaseerrors"
+
+  - interval: 1m
+    input_series:
+      - series: 'nodejs_eventloop_lag_p99_seconds{job="fintrack", instance="app:3000"}'
+        values: "0.01 0.01 0.3x15"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: FintrackEventLoopSaturation
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: fintrack
+              instance: app:3000
+            exp_annotations:
+              summary: "Event loop do Node saturado"
+              description: "O atraso p99 do event loop está em 300ms há 5 minutos."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackeventloopsaturation"
+
+  # 30 falhas de login por minuto: possível força bruta.
+  - interval: 1m
+    input_series:
+      - series: 'auth_login_attempts_total{job="fintrack", result="invalid_credentials"}'
+        values: "0+30x20"
+      - series: 'auth_login_attempts_total{job="fintrack", result="success"}'
+        values: "0+5x20"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: FintrackLoginFailureSpike
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Pico de falhas de login"
+              description: "30 falhas de login por minuto nos últimos 5 minutos."
+              runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackloginfailurespike"
+
+  # SLI e error budget: 1.000 requisições, 2 com 5xx -> 99,8% de disponibilidade
+  # e 60% do error budget de 0,5% ainda disponível.
+  - interval: 1h
+    input_series:
+      - series: 'http_requests_total{job="fintrack", method="GET", route="/api/expenses", status="200"}'
+        values: "0+998x10"
+      - series: 'http_requests_total{job="fintrack", method="GET", route="/api/expenses", status="500"}'
+        values: "0+2x10"
+    promql_expr_test:
+      - expr: round(fintrack:availability_sli:ratio_30d, 0.0001)
+        eval_time: 10h
+        exp_samples:
+          - labels: "{}"
+            value: 0.998
+      - expr: round(fintrack:availability_error_budget:remaining_30d, 0.01)
+        eval_time: 10h
+        exp_samples:
+          - labels: "{}"
+            value: 0.6

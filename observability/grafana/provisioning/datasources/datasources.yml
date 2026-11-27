@@ -1,0 +1,41 @@
+apiVersion: 1
+
+# Os uids fixos são referenciados pelo painel JSON e pelos links entre sinais:
+#   log (Elasticsearch) --trace_id--> trace (Jaeger) --trace_id--> logs do mesmo trace
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+
+  - name: Jaeger
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: elasticsearch-logs
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        customQuery: true
+        query: 'trace_id:"$${__trace.traceId}"'
+
+  - name: Elasticsearch (logs)
+    uid: elasticsearch-logs
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    jsonData:
+      index: logs-fintrack.otel-*
+      timeField: "@timestamp"
+      logMessageField: body.text
+      logLevelField: severity_text
+      dataLinks:
+        - field: trace_id
+          url: "$${__value.raw}"
+          datasourceUid: jaeger

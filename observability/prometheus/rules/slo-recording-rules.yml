@@ -1,0 +1,46 @@
+# SLIs do FinTrack pré-calculados (recording rules). O painel e o cálculo de
+# error budget leem estas séries em vez de refazer a consulta a cada atualização.
+#
+# SLOs (detalhes em docs/observabilidade.md):
+#   Disponibilidade: 99,5% das requisições da API sem erro 5xx, em 30 dias.
+#   Latência:        95% das requisições da API respondidas em até 500 ms, em 30 dias.
+
+groups:
+  - name: fintrack-sli
+    interval: 30s
+    rules:
+      - record: fintrack:http_requests:rate5m
+        expr: sum(rate(http_requests_total{job="fintrack"}[5m]))
+
+      - record: fintrack:http_errors_5xx:ratio_rate5m
+        expr: |
+          sum(rate(http_requests_total{job="fintrack", status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="fintrack"}[5m]))
+
+      - record: fintrack:http_request_duration_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="fintrack"}[5m]))
+          )
+
+      # SLI de disponibilidade: proporção de requisições sem 5xx.
+      - record: fintrack:availability_sli:ratio_30d
+        expr: |
+          1 - (
+            sum(increase(http_requests_total{job="fintrack", status=~"5.."}[30d]))
+            /
+            sum(increase(http_requests_total{job="fintrack"}[30d]))
+          )
+
+      # SLI de latência: proporção de requisições abaixo de 500 ms (borda do histograma).
+      - record: fintrack:latency_sli:ratio_30d
+        expr: |
+          sum(increase(http_request_duration_seconds_bucket{job="fintrack", le="0.5"}[30d]))
+          /
+          sum(increase(http_request_duration_seconds_count{job="fintrack"}[30d]))
+
+      # Error budget restante: 1 = intacto, 0 = esgotado, negativo = SLO violado.
+      # Orçamento de erro do SLO de 99,5% = 0,5% das requisições.
+      - record: fintrack:availability_error_budget:remaining_30d
+        expr: 1 - ((1 - fintrack:availability_sli:ratio_30d) / 0.005)

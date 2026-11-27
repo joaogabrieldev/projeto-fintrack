@@ -8,6 +8,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./tests/setup.ts"],
+    // Os testes de observabilidade ligam o nível que precisam com vi.stubEnv.
+    env: { LOG_LEVEL: "silent" },
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
   },
   resolve: {

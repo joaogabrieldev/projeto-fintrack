@@ -1,0 +1,34 @@
+# Nunca enviar segredos para o contexto de build
+.env
+.env.*
+!.env.example
+
+# Gerados localmente / reinstalados no build
+node_modules
+.next
+out
+build
+dist
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Banco local
+data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Não usados pela imagem
+.git
+.github
+.claude
+.vercel
+.vscode
+.idea
+docs
+*.md
+*.log
+Dockerfile
+.dockerignore
