@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { categories, expenses } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
+import { instrumentRouteHandler } from "@/lib/observability/instrument-route-handler";
 import { z } from "zod/v4";
 
 const categoryUpdateSchema = z.object({
@@ -11,11 +12,16 @@ const categoryUpdateSchema = z.object({
   icon: z.string().min(1),
 });
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return unauthorizedResponse();
+interface CategoryRouteContext {
+  params: Promise<{ id: string }>;
+}
 
-  try {
+export const PUT = instrumentRouteHandler(
+  "/api/categories/[id]",
+  async (req: Request, { params }: CategoryRouteContext) => {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return unauthorizedResponse();
+
     const { id } = await params;
     const body = await req.json();
     const result = categoryUpdateSchema.safeParse(body);
@@ -37,21 +43,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[PUT /api/categories/:id]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+);
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return unauthorizedResponse();
+export const DELETE = instrumentRouteHandler(
+  "/api/categories/[id]",
+  async (_req: Request, { params }: CategoryRouteContext) => {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return unauthorizedResponse();
 
-  try {
     const { id } = await params;
 
     // Reassign expenses to null (uncategorized) before deleting
@@ -69,12 +69,5 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[DELETE /api/categories/:id]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+);

@@ -14,7 +14,7 @@ Este documento descreve os ambientes utilizados pelo FinTrack na Menção 1 de I
 
 ### Desenvolvimento
 
-O ambiente de desenvolvimento é executado localmente. O projeto utiliza Node.js 20+, pnpm 9+, Next.js e banco configurado por variáveis de ambiente.
+O ambiente de desenvolvimento é executado localmente. O projeto utiliza Node.js 22+, pnpm 9+, Next.js e banco configurado por variáveis de ambiente.
 
 Fluxo básico:
 
@@ -59,6 +59,13 @@ O arquivo `.env.example` atualmente documenta as seguintes variáveis:
 | `NEXTAUTH_URL` | URL base da aplicação | Não, em geral |
 | `DATABASE_URL` | URL de conexão com o banco | Pode ser |
 | `DATABASE_AUTH_TOKEN` | Token de autenticação do banco Turso/libSQL | Sim |
+| `LOG_LEVEL` | Nível mínimo dos logs estruturados | Não |
+| `OTEL_SERVICE_NAME` | Nome do serviço nos logs e traces | Não |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Endereço do OpenTelemetry Collector | Não |
+| `METRICS_TOKEN` | Token do endpoint `/api/metrics` (obrigatório em produção) | Sim |
+| `DB_SLOW_QUERY_MS` | Limite, em ms, para registrar consulta lenta | Não |
+
+As variáveis de observabilidade estão detalhadas em [observabilidade.md](observabilidade.md).
 
 O `.env.example` deve conter apenas valores de exemplo. Os valores reais ficam somente no `.env` local ou nos Secrets/Environment Variables da plataforma de hospedagem.
 
@@ -118,7 +125,7 @@ Nunca copie o segredo real para:
 
 ## 7. Checklist de execução local
 
-- [ ] Node.js 20+ instalado
+- [ ] Node.js 22+ instalado
 - [ ] pnpm instalado
 - [ ] Repositório clonado
 - [ ] `pnpm install` executado

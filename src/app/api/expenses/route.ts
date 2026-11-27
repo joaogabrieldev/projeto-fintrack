@@ -4,8 +4,9 @@ import { expenses } from "@/lib/db/schema";
 import { eq, and, gte, lte, like, desc } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
 import { expenseInputSchema } from "@/lib/business/validation";
+import { instrumentRouteHandler } from "@/lib/observability/instrument-route-handler";
 
-export async function GET(req: NextRequest) {
+export const GET = instrumentRouteHandler("/api/expenses", async (req: NextRequest) => {
   const userId = await getAuthenticatedUserId();
   if (!userId) return unauthorizedResponse();
 
@@ -37,43 +38,35 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(expenses.date));
 
   return NextResponse.json(result);
-}
+});
 
-export async function POST(req: Request) {
+// Erros inesperados viram 500 genérico no instrumentRouteHandler, com log e trace_id.
+export const POST = instrumentRouteHandler("/api/expenses", async (req: Request) => {
   const userId = await getAuthenticatedUserId();
   if (!userId) return unauthorizedResponse();
 
-  try {
-    const body = await req.json();
-    const result = expenseInputSchema.safeParse(body);
+  const body = await req.json();
+  const result = expenseInputSchema.safeParse(body);
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Dados inválidos", details: result.error.flatten() },
-        { status: 400 }
-      );
-    }
-
-    const { amount, description, categoryId, date } = result.data;
-    const id = crypto.randomUUID();
-
-    await db.insert(expenses).values({
-      id,
-      userId,
-      categoryId,
-      amountCents: amount,
-      description,
-      date: new Date(date),
-      createdAt: new Date(),
-    });
-
-    return NextResponse.json({ id }, { status: 201 });
-  } catch (error) {
-    console.error("[POST /api/expenses]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Dados inválidos", details: result.error.flatten() },
+      { status: 400 }
+    );
   }
-}
+
+  const { amount, description, categoryId, date } = result.data;
+  const id = crypto.randomUUID();
+
+  await db.insert(expenses).values({
+    id,
+    userId,
+    categoryId,
+    amountCents: amount,
+    description,
+    date: new Date(date),
+    createdAt: new Date(),
+  });
+
+  return NextResponse.json({ id }, { status: 201 });
+});

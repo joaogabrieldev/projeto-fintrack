@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import { expenses, budgets, goals } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
+import { instrumentRouteHandler } from "@/lib/observability/instrument-route-handler";
 
-export async function GET() {
+export const GET = instrumentRouteHandler("/api/dashboard", async () => {
   const userId = await getAuthenticatedUserId();
   if (!userId) return unauthorizedResponse();
 
@@ -116,4 +117,4 @@ export async function GET() {
     budgets: monthBudgets,
     goal,
   });
-}
+});

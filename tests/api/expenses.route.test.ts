@@ -15,13 +15,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // `vi.hoisted` garante que estes mocks existam antes dos factories de `vi.mock`,
 // que são içados para o topo do módulo.
-const { getAuthenticatedUserIdMock, insertMock, valuesMock } = vi.hoisted(() => {
+const { getAuthenticatedUserIdMock, insertMock, valuesMock, selectMock } = vi.hoisted(() => {
   const valuesMock = vi.fn(async () => undefined);
   const insertMock = vi.fn(() => ({ values: valuesMock }));
-  const getAuthenticatedUserIdMock = vi.fn(
-    async (): Promise<string | null> => "user-test-id"
-  );
-  return { getAuthenticatedUserIdMock, insertMock, valuesMock };
+  const selectMock = vi.fn();
+  const getAuthenticatedUserIdMock = vi.fn(async (): Promise<string | null> => "user-test-id");
+  return { getAuthenticatedUserIdMock, insertMock, valuesMock, selectMock };
 });
 
 // Autenticação: por padrão devolve um usuário autenticado.
@@ -33,10 +32,11 @@ vi.mock("@/lib/auth/session", () => ({
 
 // Banco de dados: captura a chamada `db.insert(expenses).values({...})`.
 vi.mock("@/lib/db", () => ({
-  db: { insert: insertMock },
+  db: { insert: insertMock, select: selectMock },
 }));
 
-import { POST } from "@/app/api/expenses/route";
+import { NextRequest } from "next/server";
+import { GET, POST } from "@/app/api/expenses/route";
 
 function buildRequest(body: unknown): Request {
   return new Request("http://localhost/api/expenses", {
@@ -115,5 +115,34 @@ describe("POST /api/expenses", () => {
 
     expect(res.status).toBe(401);
     expect(insertMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/expenses", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getAuthenticatedUserIdMock.mockResolvedValue("user-test-id");
+  });
+
+  it("cenário 9: falha no banco retorna 500 genérico sem expor detalhes técnicos", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const falhaSimulada = new Error(
+      "SQLITE_ERROR: no such table: expenses (/app/data/fintrack.db) authToken=segredo"
+    );
+    selectMock.mockReturnValue({
+      from: () => ({
+        where: () => ({ orderBy: () => Promise.reject(falhaSimulada) }),
+      }),
+    });
+
+    const res = await GET(new NextRequest("http://localhost/api/expenses"));
+    const body = await res.text();
+
+    expect(res.status).toBe(500);
+    expect(JSON.parse(body)).toEqual({ error: "Erro interno do servidor" });
+    // Nada de stack trace, tabela, caminho de arquivo ou credencial na resposta.
+    expect(body).not.toMatch(/SQLITE|expenses|fintrack\.db|authToken|segredo|at .*\(/);
+    // O id de correlação permite achar o log completo do erro no servidor.
+    expect(res.headers.get("x-request-id")).toBeTruthy();
   });
 });

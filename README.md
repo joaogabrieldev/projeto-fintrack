@@ -23,6 +23,7 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 - **Exportação** — download de dados em CSV e JSON
 - **Dark mode** — toggle no header, respeita preferência do sistema
 - **Responsivo** — layout mobile-first que funciona em qualquer dispositivo
+- **Observabilidade** — logs estruturados, métricas Prometheus, traces OpenTelemetry, painel Grafana, SLO e alertas testados
 
 ## Stack Tecnológica
 
@@ -38,6 +39,7 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 | Testes          | Vitest + Testing Library                              |
 | Linting         | ESLint (next/core-web-vitals + typescript) + Prettier |
 | Package Manager | pnpm                                                  |
+| Observabilidade | OpenTelemetry, Prometheus, Grafana, Elastic Stack, Jaeger |
 
 - Porque eu escolhi o SQLite ao invés de um banco em PostgreSQL?
 
@@ -47,7 +49,7 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 
 ### Pré-requisitos
 
-- Node.js 20+
+- Node.js 22+
 - pnpm 9+
 
 ### Passo a passo
@@ -98,6 +100,10 @@ Configuração dos secrets, tags publicadas e uso com SQLite local: [docs/docker
 | `pnpm typecheck` | Verificar tipos TypeScript   |
 | `pnpm db:push`   | Aplicar schema no banco      |
 | `pnpm db:studio` | Abrir Drizzle Studio         |
+| `pnpm observability:up` | Subir a stack de observabilidade (Docker) |
+| `pnpm observability:down` | Derrubar a stack de observabilidade |
+| `pnpm observability:traffic` | Gerar tráfego de demonstração |
+| `pnpm observability:test-rules` | Testar as regras de alerta (promtool) |
 
 ## Testes
 
@@ -123,6 +129,28 @@ dados substituídos por mocks) e cobre:
 - **Erro:** dados inválidos → `400 Bad Request` com `{ error: "Dados inválidos" }`,
   sem persistir nada (Cenário 4).
 - **Autorização:** sem usuário autenticado → `401 Não autorizado` (base do Cenário 5).
+- **Erro interno:** falha simulada no banco em `GET /api/expenses` → `500` com
+  `{ error: "Erro interno do servidor" }`, sem stack trace, tabela ou caminho (Cenário 9).
+
+## Observabilidade
+
+A aplicação emite os três sinais clássicos de telemetria:
+
+- **Métricas** em `/api/metrics` (formato Prometheus): tráfego, erros, latência e saturação por rota, duração das consultas ao banco e tentativas de login.
+- **Logs estruturados** em JSON, com `trace_id`, `request_id` e mascaramento automático de senhas, tokens, e-mails e chaves Pix.
+- **Traces** com OpenTelemetry: cada requisição mostra o tempo gasto na rota e em cada consulta ao banco.
+
+Toda resposta da API traz `x-request-id` e `x-trace-id` para correlacionar um erro relatado com o log e o trace. O `/api/health` verifica a aplicação e o banco.
+
+Para ver tudo funcionando localmente (Prometheus, Grafana, Jaeger, Elasticsearch e Kibana):
+
+```bash
+pnpm observability:up
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 pnpm dev
+pnpm observability:traffic
+```
+
+O painel fica em [http://localhost:3001](http://localhost:3001). Arquitetura, catálogo de métricas, SLI/SLO, alertas e runbooks: [docs/observabilidade.md](docs/observabilidade.md).
 
 ## Lint
 
@@ -429,6 +457,8 @@ A resposta não deve expor:
 - mensagem técnica da exceção.
 
 Esse cenário deve ser executado somente com uma falha simulada e controlada. Não é necessário provocar uma falha real no ambiente de produção.
+
+> ✅ **Implementado em código** em `tests/api/expenses.route.test.ts`. O tratamento do 500 fica centralizado em `instrumentRouteHandler` (`src/lib/observability/instrument-route-handler.ts`), que vale para todas as rotas da API.
 
 ---
 

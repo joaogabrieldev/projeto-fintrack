@@ -3,16 +3,17 @@ import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { auth } from '@/lib/auth'; // ✅ Caminho correto
+import { instrumentRouteHandler } from '@/lib/observability/instrument-route-handler';
 
-export async function GET() {
+export const GET = instrumentRouteHandler('/api/categories', async () => {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
   const allCategories = await db.select().from(categories).where(eq(categories.userId, session.user.id));
   return NextResponse.json(allCategories);
-}
+});
 
-export async function POST(request: Request) {
+export const POST = instrumentRouteHandler('/api/categories', async (request: Request) => {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
@@ -26,9 +27,9 @@ export async function POST(request: Request) {
   }).returning();
 
   return NextResponse.json(newCategory, { status: 201 });
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = instrumentRouteHandler('/api/categories', async (request: Request) => {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
@@ -39,9 +40,9 @@ export async function PUT(request: Request) {
     .returning();
 
   return NextResponse.json(updatedCategory);
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = instrumentRouteHandler('/api/categories', async (request: Request) => {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
@@ -50,4 +51,4 @@ export async function DELETE(request: Request) {
     .where(and(eq(categories.id, id), eq(categories.userId, session.user.id)));
 
   return NextResponse.json({ message: 'Categoria eliminada' });
-}
+});
