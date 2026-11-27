@@ -1,0 +1,30 @@
+# Prometheus: coleta as métricas por scraping HTTP, guarda as séries temporais
+# e avalia as regras de SLI/SLO e de alerta.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # A aplicação rodando no host com `pnpm dev` (porta 3000).
+  - job_name: fintrack
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ["host.docker.internal:3000"]
+    # Em produção o /api/metrics exige METRICS_TOKEN. Monte o token como arquivo
+    # (nunca direto neste YAML) e descomente:
+    # authorization:
+    #   type: Bearer
+    #   credentials_file: /etc/prometheus/secrets/metrics-token
+
+  # Saúde do pipeline de telemetria: quanto o collector recebe, exporta e descarta.
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { budgets, expenses } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
+import { instrumentRouteHandler } from "@/lib/observability/instrument-route-handler";
 import { z } from "zod/v4";
 
 const budgetSchema = z.object({
@@ -12,7 +13,7 @@ const budgetSchema = z.object({
   year: z.number().int().min(2000).max(2100),
 });
 
-export async function GET(req: NextRequest) {
+export const GET = instrumentRouteHandler("/api/budgets", async (req: NextRequest) => {
   const userId = await getAuthenticatedUserId();
   if (!userId) return unauthorizedResponse();
 
@@ -52,50 +53,41 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json(result);
-}
+});
 
-export async function POST(req: Request) {
+export const POST = instrumentRouteHandler("/api/budgets", async (req: Request) => {
   const userId = await getAuthenticatedUserId();
   if (!userId) return unauthorizedResponse();
 
-  try {
-    const body = await req.json();
-    const result = budgetSchema.safeParse(body);
+  const body = await req.json();
+  const result = budgetSchema.safeParse(body);
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Dados inválidos", details: result.error.flatten() },
-        { status: 400 }
-      );
-    }
-
-    const { categoryId, amountCents, month, year } = result.data;
-
-    // Upsert: update if exists, insert if not
-    const existing = await db.query.budgets.findFirst({
-      where: and(
-        eq(budgets.userId, userId),
-        eq(budgets.categoryId, categoryId),
-        eq(budgets.month, month),
-        eq(budgets.year, year)
-      ),
-    });
-
-    if (existing) {
-      await db.update(budgets).set({ amountCents }).where(eq(budgets.id, existing.id));
-      return NextResponse.json({ id: existing.id });
-    }
-
-    const id = crypto.randomUUID();
-    await db.insert(budgets).values({ id, userId, categoryId, amountCents, month, year });
-
-    return NextResponse.json({ id }, { status: 201 });
-  } catch (error) {
-    console.error("[POST /api/budgets]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Dados inválidos", details: result.error.flatten() },
+      { status: 400 }
+    );
   }
-}
+
+  const { categoryId, amountCents, month, year } = result.data;
+
+  // Upsert: update if exists, insert if not
+  const existing = await db.query.budgets.findFirst({
+    where: and(
+      eq(budgets.userId, userId),
+      eq(budgets.categoryId, categoryId),
+      eq(budgets.month, month),
+      eq(budgets.year, year)
+    ),
+  });
+
+  if (existing) {
+    await db.update(budgets).set({ amountCents }).where(eq(budgets.id, existing.id));
+    return NextResponse.json({ id: existing.id });
+  }
+
+  const id = crypto.randomUUID();
+  await db.insert(budgets).values({ id, userId, categoryId, amountCents, month, year });
+
+  return NextResponse.json({ id }, { status: 201 });
+});

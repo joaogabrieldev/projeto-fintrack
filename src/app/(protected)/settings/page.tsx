@@ -16,6 +16,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { centsToReais, reaisToCents } from "@/lib/business/currency";
 import {
   Plus,
@@ -67,6 +68,8 @@ export default function SettingsPage() {
   const [catColor, setCatColor] = useState("#22c55e");
   const [catIcon, setCatIcon] = useState("tag");
   const [catSaving, setCatSaving] = useState(false);
+  const [deleteCatTarget, setDeleteCatTarget] = useState<Category | null>(null);
+  const [deletingCat, setDeletingCat] = useState(false);
 
   // Budget form
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
@@ -146,15 +149,18 @@ export default function SettingsPage() {
     }
   }
 
-  async function deleteCat(id: string) {
-    if (!confirm("Ao excluir, os gastos desta categoria ficarão 'Sem categoria'. Continuar?"))
-      return;
+  async function deleteCat() {
+    if (!deleteCatTarget) return;
+    setDeletingCat(true);
     try {
-      await api.delete(`/api/categories/${id}`);
+      await api.delete(`/api/categories/${deleteCatTarget.id}`);
       toast.success("Categoria excluída");
+      setDeleteCatTarget(null);
       fetchData();
     } catch {
       toast.error("Erro ao excluir");
+    } finally {
+      setDeletingCat(false);
     }
   }
 
@@ -309,7 +315,7 @@ export default function SettingsPage() {
                       <Button variant="ghost" size="icon" onClick={() => openEditCat(cat)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => deleteCat(cat.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteCatTarget(cat)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -528,6 +534,22 @@ export default function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Category delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteCatTarget}
+        onOpenChange={(open) => !open && setDeleteCatTarget(null)}
+        title="Excluir categoria"
+        description={
+          deleteCatTarget
+            ? `Ao excluir "${deleteCatTarget.name}", os gastos desta categoria ficarão sem categoria. Deseja continuar?`
+            : undefined
+        }
+        confirmLabel="Excluir"
+        destructive
+        loading={deletingCat}
+        onConfirm={deleteCat}
+      />
 
       <Separator />
     </div>

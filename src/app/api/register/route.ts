@@ -5,49 +5,41 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { registerSchema } from "@/lib/validations/auth";
 import { seedCategoriesForUser } from "@/lib/db/seed-categories";
+import { instrumentRouteHandler } from "@/lib/observability/instrument-route-handler";
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const result = registerSchema.safeParse(body);
+export const POST = instrumentRouteHandler("/api/register", async (req: Request) => {
+  const body = await req.json();
+  const result = registerSchema.safeParse(body);
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Dados inválidos", details: result.error.flatten() },
-        { status: 400 }
-      );
-    }
-
-    const { name, email, password } = result.data;
-
-    const existing = await db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
-
-    if (existing) {
-      return NextResponse.json({ error: "Email já cadastrado" }, { status: 409 });
-    }
-
-    const passwordHash = await hash(password, 10);
-    const id = crypto.randomUUID();
-
-    await db.insert(users).values({
-      id,
-      email,
-      passwordHash,
-      name,
-      createdAt: new Date(),
-    });
-
-    await seedCategoriesForUser(id);
-
-    return NextResponse.json({ message: "Usuário criado com sucesso" }, { status: 201 });
-  } catch (error) {
-    console.error("[POST /api/register]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Dados inválidos", details: result.error.flatten() },
+      { status: 400 }
+    );
   }
-}
+
+  const { name, email, password } = result.data;
+
+  const existing = await db.query.users.findFirst({
+    where: eq(users.email, email),
+  });
+
+  if (existing) {
+    return NextResponse.json({ error: "Email já cadastrado" }, { status: 409 });
+  }
+
+  const passwordHash = await hash(password, 10);
+  const id = crypto.randomUUID();
+
+  await db.insert(users).values({
+    id,
+    email,
+    passwordHash,
+    name,
+    createdAt: new Date(),
+  });
+
+  await seedCategoriesForUser(id);
+
+  return NextResponse.json({ message: "Usuário criado com sucesso" }, { status: 201 });
+});

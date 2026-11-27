@@ -4,12 +4,18 @@ import { expenses } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
 import { expenseInputSchema } from "@/lib/business/validation";
+import { instrumentRouteHandler } from "@/lib/observability/instrument-route-handler";
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return unauthorizedResponse();
+interface ExpenseRouteContext {
+  params: Promise<{ id: string }>;
+}
 
-  try {
+export const PUT = instrumentRouteHandler(
+  "/api/expenses/[id]",
+  async (req: Request, { params }: ExpenseRouteContext) => {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return unauthorizedResponse();
+
     const { id } = await params;
     const body = await req.json();
     const result = expenseInputSchema.safeParse(body);
@@ -38,21 +44,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[PUT /api/expenses/:id]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+);
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return unauthorizedResponse();
+export const DELETE = instrumentRouteHandler(
+  "/api/expenses/[id]",
+  async (_req: Request, { params }: ExpenseRouteContext) => {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return unauthorizedResponse();
 
-  try {
     const { id } = await params;
 
     const deleted = await db
@@ -64,12 +64,5 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[DELETE /api/expenses/:id]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+);
