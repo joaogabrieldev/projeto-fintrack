@@ -1,0 +1,114 @@
+# Alertas do FinTrack. Cada alerta é sustentado (`for`) para não disparar com um
+# pico isolado, e acionável: traz o que aconteceu e o link do runbook.
+# Testes: observability/prometheus/tests/alert-rules.test.yml (promtool test rules).
+
+groups:
+  - name: fintrack-alerts
+    rules:
+      - alert: FintrackApiDown
+        expr: up{job="fintrack"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FinTrack fora do ar"
+          description: "O Prometheus não consegue coletar /api/metrics em {{ $labels.instance }} há 2 minutos."
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackapidown"
+
+      # Erros: mais de 5% das requisições com 5xx por 5 minutos.
+      - alert: FintrackHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="fintrack", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="fintrack"}[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxa de erros 5xx acima de 5%"
+          description: "{{ $value | humanizePercentage }} das requisições da API terminaram em 5xx nos últimos 5 minutos."
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackhigherrorrate"
+
+      # Error budget queimando 6x mais rápido que o sustentável (SLO de 99,5%):
+      # pega degradação moderada e contínua que não chega a 5% de erro.
+      - alert: FintrackErrorBudgetBurn
+        expr: |
+          (
+            sum(rate(http_requests_total{job="fintrack", status=~"5.."}[6h]))
+            /
+            sum(rate(http_requests_total{job="fintrack"}[6h]))
+          ) > (6 * 0.005)
+          and
+          (
+            sum(rate(http_requests_total{job="fintrack", status=~"5.."}[30m]))
+            /
+            sum(rate(http_requests_total{job="fintrack"}[30m]))
+          ) > (6 * 0.005)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error budget do SLO de disponibilidade queimando rápido"
+          description: "A taxa de 5xx nas últimas 6 horas consome o error budget de 30 dias 6x mais rápido que o sustentável."
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackerrorbudgetburn"
+
+      # Latência: p95 acima de 1 s por 10 minutos.
+      - alert: FintrackHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="fintrack"}[5m]))
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência p95 da API acima de 1 s"
+          description: "95% das requisições levam até {{ $value | humanizeDuration }}; investigue banco, rota e saturação."
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackhighlatencyp95"
+
+      - alert: FintrackSlowDatabaseQueries
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, table) (rate(db_query_duration_seconds_bucket{job="fintrack"}[5m]))
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consultas lentas na tabela {{ $labels.table }}"
+          description: "O p95 das consultas em {{ $labels.table }} está em {{ $value | humanizeDuration }} há 10 minutos."
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackslowdatabasequeries"
+
+      - alert: FintrackDatabaseErrors
+        expr: sum by (table) (increase(db_query_errors_total{job="fintrack"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Falhas repetidas no banco (tabela {{ $labels.table }})"
+          description: "Mais de 5 consultas falharam em {{ $labels.table }} nos últimos 5 minutos."
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackdatabaseerrors"
+
+      # Saturação: o event loop do Node atrasando significa CPU no limite ou código síncrono pesado.
+      - alert: FintrackEventLoopSaturation
+        expr: nodejs_eventloop_lag_p99_seconds{job="fintrack"} > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Event loop do Node saturado"
+          description: "O atraso p99 do event loop está em {{ $value | humanizeDuration }} há 5 minutos."
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackeventloopsaturation"
+
+      # Segurança: muitas falhas de login por minuto sugerem tentativa de força bruta.
+      - alert: FintrackLoginFailureSpike
+        expr: sum(rate(auth_login_attempts_total{job="fintrack", result="invalid_credentials"}[5m])) * 60 > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pico de falhas de login"
+          description: '{{ $value | printf "%.0f" }} falhas de login por minuto nos últimos 5 minutos.'
+          runbook_url: "https://github.com/joaogabrieldev/projeto-fintrack/blob/main/docs/observabilidade.md#fintrackloginfailurespike"

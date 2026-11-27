@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { goals } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthenticatedUserId, unauthorizedResponse } from "@/lib/auth/session";
+import { instrumentRouteHandler } from "@/lib/observability/instrument-route-handler";
 import { z } from "zod/v4";
 
 const goalSchema = z.object({
@@ -11,7 +12,7 @@ const goalSchema = z.object({
   year: z.number().int().min(2000).max(2100),
 });
 
-export async function GET(req: NextRequest) {
+export const GET = instrumentRouteHandler("/api/goals", async (req: NextRequest) => {
   const userId = await getAuthenticatedUserId();
   if (!userId) return unauthorizedResponse();
 
@@ -24,44 +25,35 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json(result || null);
-}
+});
 
-export async function POST(req: Request) {
+export const POST = instrumentRouteHandler("/api/goals", async (req: Request) => {
   const userId = await getAuthenticatedUserId();
   if (!userId) return unauthorizedResponse();
 
-  try {
-    const body = await req.json();
-    const result = goalSchema.safeParse(body);
+  const body = await req.json();
+  const result = goalSchema.safeParse(body);
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Dados inválidos", details: result.error.flatten() },
-        { status: 400 }
-      );
-    }
-
-    const { targetCents, month, year } = result.data;
-
-    const existing = await db.query.goals.findFirst({
-      where: and(eq(goals.userId, userId), eq(goals.month, month), eq(goals.year, year)),
-    });
-
-    if (existing) {
-      await db.update(goals).set({ targetCents }).where(eq(goals.id, existing.id));
-      return NextResponse.json({ id: existing.id });
-    }
-
-    const id = crypto.randomUUID();
-    await db.insert(goals).values({ id, userId, targetCents, month, year });
-
-    return NextResponse.json({ id }, { status: 201 });
-  } catch (error) {
-    console.error("[POST /api/goals]", error);
-    const message =
-      process.env.NODE_ENV === "development"
-        ? (error instanceof Error ? error.message : String(error))
-        : "Erro interno do servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Dados inválidos", details: result.error.flatten() },
+      { status: 400 }
+    );
   }
-}
+
+  const { targetCents, month, year } = result.data;
+
+  const existing = await db.query.goals.findFirst({
+    where: and(eq(goals.userId, userId), eq(goals.month, month), eq(goals.year, year)),
+  });
+
+  if (existing) {
+    await db.update(goals).set({ targetCents }).where(eq(goals.id, existing.id));
+    return NextResponse.json({ id: existing.id });
+  }
+
+  const id = crypto.randomUUID();
+  await db.insert(goals).values({ id, userId, targetCents, month, year });
+
+  return NextResponse.json({ id }, { status: 201 });
+});

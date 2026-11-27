@@ -1,31 +1,99 @@
 name: CI
+
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - develop
+      - "release/**"
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - develop
+      - "release/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: file:./data/fintrack.db
+  AUTH_SECRET: ci-test-secret-do-not-use-in-production
+  NEXTAUTH_URL: http://localhost:3000
 
 jobs:
   quality:
+    name: Validate application
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 10
-      - uses: actions/setup-node@v4
+
+      # Node 22: mesma versão da imagem Docker e mínima exigida pelo @prometheus-io/client.
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
-      - run: pnpm test
-      - run: mkdir -p data && pnpm db:push
-        env:
-          DATABASE_URL: file:./data/fintrack.db
-      - run: pnpm build
-        env:
-          DATABASE_URL: file:./data/fintrack.db
-          AUTH_SECRET: ci-test-secret-do-not-use-in-production
-          NEXTAUTH_URL: http://localhost:3000
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Prepare database schema
+        run: mkdir -p data && pnpm db:push
+
+      - name: Build application
+        run: pnpm build
+
+  # Regras de alerta e configurações da stack também são código: um erro aqui
+  # só apareceria no meio de um incidente, quando o alerta não disparasse.
+  observability:
+    name: Validate observability stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validar configuração e regras do Prometheus
+        run: >
+          docker run --rm -v "$PWD/observability/prometheus:/etc/prometheus:ro"
+          --entrypoint promtool prom/prometheus:v3.16.0
+          check config /etc/prometheus/prometheus.yml
+
+      - name: Testar cenários das regras de alerta
+        run: >
+          docker run --rm -v "$PWD/observability/prometheus:/etc/prometheus:ro"
+          --entrypoint promtool prom/prometheus:v3.16.0
+          test rules /etc/prometheus/tests/alert-rules.test.yml
+
+      - name: Validar configuração do OpenTelemetry Collector
+        run: >
+          docker run --rm -v "$PWD/observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro"
+          otel/opentelemetry-collector-contrib:0.165.0
+          validate --config=/etc/otelcol/config.yaml
+
+      - name: Validar compose e painel do Grafana
+        run: |
+          docker compose -f observability/compose.yaml config --quiet
+          jq empty observability/grafana/dashboards/fintrack-golden-signals.json

@@ -36,6 +36,8 @@ A imagem não contém segredos: as variáveis são passadas no `docker run`.
 | `DATABASE_AUTH_TOKEN` | Com Turso           | Token do banco remoto                          |
 | `NEXTAUTH_URL`        | Não                 | URL pública da aplicação                       |
 | `PORT`                | Não (padrão `3000`) | Porta em que o servidor escuta                 |
+| `METRICS_TOKEN`       | Para métricas       | Token do `/api/metrics`; sem ele, o endpoint responde 404 |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Não         | Collector que recebe traces e logs (OTLP)      |
 
 ### Com Turso (recomendado)
 
@@ -71,5 +73,7 @@ docker run -p 3000:3000 --env-file .env fintrack
 ```
 
 O `.dockerignore` impede que `.env`, `data/` e `node_modules` entrem no contexto de build.
+
+A imagem tem `HEALTHCHECK` em `/api/health` (a cada 30 s): `docker ps` mostra `healthy` ou `unhealthy`, e o estado muda para `unhealthy` quando a API ou o banco param de responder. Métricas, logs e traces: [observabilidade.md](observabilidade.md).
 
 A imagem é publicada apenas para `linux/amd64`. Em Macs com Apple Silicon ela roda via emulação do Docker Desktop.

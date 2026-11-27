@@ -23,6 +23,7 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 - **Exportação** — download de dados em CSV e JSON
 - **Dark mode** — toggle no header, respeita preferência do sistema
 - **Responsivo** — layout mobile-first que funciona em qualquer dispositivo
+- **Observabilidade** — logs estruturados, métricas Prometheus, traces OpenTelemetry, painel Grafana, SLO e alertas testados
 
 ## Stack Tecnológica
 
@@ -38,6 +39,7 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 | Testes          | Vitest + Testing Library                              |
 | Linting         | ESLint (next/core-web-vitals + typescript) + Prettier |
 | Package Manager | pnpm                                                  |
+| Observabilidade | OpenTelemetry, Prometheus, Grafana, Elastic Stack, Jaeger |
 
 - Porque eu escolhi o SQLite ao invés de um banco em PostgreSQL?
 
@@ -47,7 +49,7 @@ Jovens adultos e famílias que querem organizar finanças pessoais de forma simp
 
 ### Pré-requisitos
 
-- Node.js 20+
+- Node.js 22+
 - pnpm 9+
 
 ### Passo a passo
@@ -98,6 +100,10 @@ Configuração dos secrets, tags publicadas e uso com SQLite local: [docs/docker
 | `pnpm typecheck` | Verificar tipos TypeScript   |
 | `pnpm db:push`   | Aplicar schema no banco      |
 | `pnpm db:studio` | Abrir Drizzle Studio         |
+| `pnpm observability:up` | Subir a stack de observabilidade (Docker) |
+| `pnpm observability:down` | Derrubar a stack de observabilidade |
+| `pnpm observability:traffic` | Gerar tráfego de demonstração |
+| `pnpm observability:test-rules` | Testar as regras de alerta (promtool) |
 
 ## Testes
 
@@ -123,6 +129,28 @@ dados substituídos por mocks) e cobre:
 - **Erro:** dados inválidos → `400 Bad Request` com `{ error: "Dados inválidos" }`,
   sem persistir nada (Cenário 4).
 - **Autorização:** sem usuário autenticado → `401 Não autorizado` (base do Cenário 5).
+- **Erro interno:** falha simulada no banco em `GET /api/expenses` → `500` com
+  `{ error: "Erro interno do servidor" }`, sem stack trace, tabela ou caminho (Cenário 9).
+
+## Observabilidade
+
+A aplicação emite os três sinais clássicos de telemetria:
+
+- **Métricas** em `/api/metrics` (formato Prometheus): tráfego, erros, latência e saturação por rota, duração das consultas ao banco e tentativas de login.
+- **Logs estruturados** em JSON, com `trace_id`, `request_id` e mascaramento automático de senhas, tokens, e-mails e chaves Pix.
+- **Traces** com OpenTelemetry: cada requisição mostra o tempo gasto na rota e em cada consulta ao banco.
+
+Toda resposta da API traz `x-request-id` e `x-trace-id` para correlacionar um erro relatado com o log e o trace. O `/api/health` verifica a aplicação e o banco.
+
+Para ver tudo funcionando localmente (Prometheus, Grafana, Jaeger, Elasticsearch e Kibana):
+
+```bash
+pnpm observability:up
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 pnpm dev
+pnpm observability:traffic
+```
+
+O painel fica em [http://localhost:3001](http://localhost:3001). Arquitetura, catálogo de métricas, SLI/SLO, alertas e runbooks: [docs/observabilidade.md](docs/observabilidade.md).
 
 ## Lint
 
@@ -154,6 +182,66 @@ pnpm lint
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 ---
+
+## Cenários de teste
+
+Os cenários abaixo descrevem o fluxo principal de uso do FinTrack e serão utilizados como referência para os testes automatizados e para o processo de CI/CD.
+
+### Caminho feliz: cadastrar usuário, fazer login e registrar gasto
+
+**Objetivo:** validar que um usuário consegue criar uma conta, acessar o sistema e registrar uma despesa.
+
+**Pré-condições:**
+
+- A aplicação está em execução em `http://localhost:3000`.
+- O banco de dados foi configurado.
+- O usuário ainda não possui uma conta com o e-mail utilizado.
+
+**Passos:**
+
+1. Acessar `http://localhost:3000/register`.
+2. Informar um nome válido.
+3. Informar um e-mail válido, por exemplo `teste@exemplo.com`.
+4. Informar uma senha válida.
+5. Confirmar o cadastro.
+6. Acessar a tela de login.
+7. Informar o mesmo e-mail e senha.
+8. Confirmar o login.
+9. Acessar o dashboard.
+10. Cadastrar uma despesa com descrição, valor, categoria e data válidos.
+11. Salvar a despesa.
+12. Verificar se a despesa aparece na lista e no resumo do dashboard.
+
+**Resultado esperado:**
+
+- O usuário é cadastrado com sucesso.
+- O login é realizado.
+- O dashboard é exibido.
+- A despesa é salva.
+- A despesa aparece na listagem e nos valores do dashboard.
+
+### Caminho triste: tentar cadastrar dados inválidos
+
+**Objetivo:** validar que o sistema rejeita informações inválidas e não salva dados incorretos.
+
+**Passos:**
+
+1. Acessar a tela de cadastro.
+2. Informar um e-mail inválido ou uma senha menor que o mínimo exigido.
+3. Tentar concluir o cadastro.
+4. Verificar a mensagem de validação.
+5. Tentar cadastrar uma despesa com valor negativo, descrição vazia ou data muito futura.
+
+**Resultado esperado:**
+
+- O cadastro inválido é rejeitado.
+- Uma mensagem de erro é exibida.
+- Nenhum usuário inválido é criado.
+- A despesa inválida não é salva.
+- O sistema continua funcionando normalmente.
+
+---
+
 ## Cenários de testes das APIs
 
 Os cenários abaixo descrevem os testes que serão utilizados para validar as APIs do FinTrack e dar continuidade à automação do pipeline de CI/CD.
@@ -429,6 +517,8 @@ A resposta não deve expor:
 - mensagem técnica da exceção.
 
 Esse cenário deve ser executado somente com uma falha simulada e controlada. Não é necessário provocar uma falha real no ambiente de produção.
+
+> ✅ **Implementado em código** em `tests/api/expenses.route.test.ts`. O tratamento do 500 fica centralizado em `instrumentRouteHandler` (`src/lib/observability/instrument-route-handler.ts`), que vale para todas as rotas da API.
 
 ---
 

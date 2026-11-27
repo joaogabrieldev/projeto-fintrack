@@ -49,4 +49,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 EXPOSE 3000
 
+# Marca o container como unhealthy quando a API ou o banco param de responder.
+# O wget já vem no Alpine (busybox); 127.0.0.1 evita depender do HOSTNAME.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD wget -qO /dev/null http://127.0.0.1:3000/api/health || exit 1
+
 CMD ["node", "server.js"]

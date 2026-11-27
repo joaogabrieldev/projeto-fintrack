@@ -1,5 +1,6 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { instrumentDatabaseClient } from "@/lib/observability/instrument-database-client";
 import * as schema from "./schema";
 
 const url = process.env.DATABASE_URL;
@@ -18,4 +19,5 @@ const client = createClient({
   authToken: isRemote ? process.env.DATABASE_AUTH_TOKEN : undefined,
 });
 
-export const db = drizzle(client, { schema });
+// Toda consulta do Drizzle passa pelo cliente instrumentado: span, duração e log de lentidão.
+export const db = drizzle(instrumentDatabaseClient(client), { schema });

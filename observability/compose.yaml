@@ -1,0 +1,141 @@
+# Stack de observabilidade local do FinTrack (laboratório, não produção).
+#
+#   pnpm observability:up     # sobe tudo
+#   pnpm observability:down   # derruba e mantém os dados
+#
+# A aplicação roda fora daqui, no host (`pnpm dev`), com:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+#
+# Interfaces:
+#   Grafana     http://localhost:3001  (painel "FinTrack - Sinais dourados e SLO")
+#   Prometheus  http://localhost:9090  (alertas em /alerts)
+#   Jaeger      http://localhost:16686 (traces)
+#   Kibana      http://localhost:5601  (logs, data view "FinTrack logs")
+#
+# Precisa de ~4 GB de memória livre para o Docker (Elasticsearch + Kibana são os maiores).
+
+name: fintrack-observability
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.165.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP (usado pela aplicação)
+    depends_on:
+      jaeger:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    ports:
+      - "16686:16686" # interface web
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    # Permite ao container alcançar o `pnpm dev` que roda no host (Linux, macOS e Windows).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.4.14
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Leitura sem login, só para o laboratório local.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/fintrack-golden-signals.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  elasticsearch:
+    image: elasticsearch:8.19.23
+    environment:
+      discovery.type: single-node
+      # Sem autenticação: aceitável só porque a porta fica restrita à máquina local.
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+  kibana:
+    image: kibana:8.19.23
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'curl -fs http://localhost:5601/api/status | grep -q ''"level":"available"'' || exit 1',
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+  # Cria a data view dos logs no Kibana uma vez; `override` torna a chamada idempotente.
+  kibana-setup:
+    image: curlimages/curl:8.23.0
+    depends_on:
+      kibana:
+        condition: service_healthy
+    command:
+      - -fsS
+      - -X
+      - POST
+      - http://kibana:5601/api/data_views/data_view
+      - -H
+      - "kbn-xsrf: true"
+      - -H
+      - "Content-Type: application/json"
+      - -d
+      - '{"override":true,"data_view":{"id":"fintrack-logs","name":"FinTrack logs","title":"logs-fintrack.otel-*","timeFieldName":"@timestamp"}}'
+    restart: "no"
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:

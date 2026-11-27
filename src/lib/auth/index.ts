@@ -4,7 +4,15 @@ import { compare } from "bcryptjs";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { logger } from "@/lib/observability/logger";
+import { metrics } from "@/lib/observability/metrics";
 import "./types";
+
+// Usuário inexistente e senha errada contam igual: a métrica não pode servir para descobrir e-mails cadastrados.
+function recordFailedLogin() {
+  metrics.authLoginAttemptsTotal.inc({ result: "invalid_credentials" });
+  logger.warn("auth_login_failed", { reason: "invalid_credentials" });
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
@@ -18,6 +26,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          recordFailedLogin();
           return null;
         }
 
@@ -29,14 +38,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         if (!user) {
+          recordFailedLogin();
           return null;
         }
 
         const isValid = await compare(password, user.passwordHash);
 
         if (!isValid) {
+          recordFailedLogin();
           return null;
         }
+
+        metrics.authLoginAttemptsTotal.inc({ result: "success" });
 
         return {
           id: user.id,
